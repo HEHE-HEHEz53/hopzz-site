@@ -16,7 +16,8 @@
  */
 
 // 不再依赖 @deepseek-ai/schemastery：插件是软链接安装，Node 从真实路径解析，找不到 DSH 内部包。
-import { readFileSync, writeFileSync, existsSync } from 'node:fs';
+import { readFileSync, writeFileSync, existsSync, mkdirSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawn } from 'node:child_process';
@@ -27,7 +28,7 @@ export const name = 'web-relay';
 // 否则插件启动太早，ctx.get('webServer') 拿到 undefined，设置面板接口就全 404。
 export const inject = ['webServer'];
 
-const VERSION = '2.5.0';
+const VERSION = '2.6.0';
 const TAG = `[web-relay@${VERSION}]`;
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -57,7 +58,7 @@ export function apply(ctx, config = {}) {
     agentToken: '',
     maxReconnectMs: 0,
     sshConfigPath: 'D:\\DSH\\work\\.ssh\\config',
-    sshTarget: 'vps',
+    sshTarget: '',
     repoPath: 'D:\\DSH\\work',
     // 一键部署用：填了这些就用密码登录，不依赖本机 SSH 配置
     deployHost: '',
@@ -65,6 +66,7 @@ export function apply(ctx, config = {}) {
     deployUser: 'root',
     deployPassword: '',
     deployDomain: '',
+    sourceUrl: 'https://hopzz.top/dl/chat-src.tar.gz',
     plinkPath: 'D:\\app\\putty\\plink.exe',
     pscpPath: 'D:\\app\\putty\\pscp.exe',
   };
@@ -186,15 +188,60 @@ export function apply(ctx, config = {}) {
     return matched ? matched[0] : '';
   }
 
+  /** 用 Node 自带 fetch 下载文件 */
+  async function downloadFile(url, dest) {
+    const res = await fetch(url);
+    if (!res.ok) throw new Error('下载失败 HTTP ' + res.status);
+    writeFileSync(dest, Buffer.from(await res.arrayBuffer()));
+  }
+
+  /** 没有本地源码时，自动下载带 chat/ 目录的源码包并解压 */
+  async function fetchSourceBundle() {
+    const url = runtimeSettings.sourceUrl || 'https://hopzz.top/dl/chat-src.tar.gz';
+    const temp = join(tmpdir(), 'hopzz-src-' + Date.now());
+    mkdirSync(temp, { recursive: true });
+    const tgz = join(temp, 'src.tar.gz');
+    await downloadFile(url, tgz);
+    const unpacked = await runCommand('tar', ['-xzf', tgz, '-C', temp], 120000);
+    if (unpacked.code !== 0) throw new Error('解压源码包失败：' + (unpacked.out || ''));
+    return { dir: join(temp, 'chat'), temp };
+  }
+
   async function deployWebui() {
-    const repo = runtimeSettings.repoPath || 'D:\\DSH\\work';
-    const domain = runtimeSettings.deployDomain || 'ai.hopzz.top';
-    const chatDir = join(repo, 'chat');
-    if (!existsSync(chatDir)) {
-      return { ok: false, message: '找不到 chat 目录：' + chatDir, log: '' };
+    const addr = (runtimeSettings.deployDomain || '').trim();
+    if (!addr) {
+      return { ok: false, message: '请先填写「访问地址」（域名，或 IP:端口，例如 1.2.3.4:8888）', log: '' };
     }
 
-    let logText = `仓库: ${repo}\n目标域名: ${domain}\n\n`;
+    let chatDir = '';
+    let tempDir = '';
+    const repo = (runtimeSettings.repoPath || '').trim();
+    if (repo) {
+      const candidate = join(repo, 'chat');
+      if (existsSync(candidate)) chatDir = candidate;
+    }
+    let sourceNote = '';
+    if (!chatDir) {
+      try {
+        const fetched = await fetchSourceBundle();
+        chatDir = fetched.dir;
+        tempDir = fetched.temp;
+        sourceNote = '源码来源：在线下载\n';
+      } catch (err) {
+        return {
+          ok: false,
+          message: '本机没有源码，下载也失败：' + String(err?.message ?? err),
+          log: '请检查网络，或在设置里填「本地仓库路径」。',
+        };
+      }
+    } else {
+      sourceNote = '源码来源：本地仓库\n';
+    }
+    if (!existsSync(chatDir)) {
+      return { ok: false, message: '源码包里没有 chat 目录', log: '' };
+    }
+
+    let logText = sourceNote + `目标地址: ${addr}\n\n`;
     const usePassword = !!runtimeSettings.deployHost && !!runtimeSettings.deployPassword;
 
     if (usePassword) {
@@ -244,13 +291,13 @@ export function apply(ctx, config = {}) {
       const step3 = await runCommand(
         plink,
         ['-batch', '-P', String(port), '-l', user, '-pw', password, ...keyArg, host,
-          `bash /root/chat-deploy/install_chat.sh ${domain}`],
+          `bash /root/chat-deploy/install_chat.sh ${addr}`],
         300000
       );
       logText += (step3.out || '') + '\n';
       return {
         ok: step3.code === 0,
-        message: step3.code === 0 ? '部署完成：https://' + domain : '安装脚本返回失败，看下面日志',
+        message: step3.code === 0 ? '部署完成：' + addr : '安装脚本返回失败，看下面日志',
         log: logText,
       };
     }
@@ -283,13 +330,13 @@ export function apply(ctx, config = {}) {
 
     const step3 = await runCommand(
       'ssh',
-      ['-F', cfgPath, target, `bash /root/chat-deploy/install_chat.sh ${domain}`],
+      ['-F', cfgPath, target, `bash /root/chat-deploy/install_chat.sh ${addr}`],
       300000
     );
     logText += `$ ssh "bash install_chat.sh ${domain}"\n${step3.out}\n`;
     return {
       ok: step3.code === 0,
-      message: step3.code === 0 ? '部署完成：https://' + domain : '安装脚本返回失败，看下面日志',
+      message: step3.code === 0 ? '部署完成：' + addr : '安装脚本返回失败，看下面日志',
       log: logText,
     };
   }

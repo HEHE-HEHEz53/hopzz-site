@@ -1,14 +1,14 @@
 #!/bin/bash
 # =====================================================================
-# 部署「鲸鱼娘在线」网页端（可换域名）
+# 部署「鲸鱼娘在线」网页端
 # 用法：
-#   bash install_chat.sh                    # 默认 ai.hopzz.top
-#   bash install_chat.sh example.com        # 自定义域名
-# 幂等：可以重复执行；已有令牌/证书会被保留。
+#   bash install_chat.sh ai.example.com        # 域名（自动签 HTTPS 证书）
+#   bash install_chat.sh 1.2.3.4:8888          # IP:端口（纯 HTTP，不签证书）
+# 幂等；已有令牌/证书会保留。
 # =====================================================================
 set -euo pipefail
 
-DOMAIN="${1:-${DOMAIN:-ai.hopzz.top}}"
+ADDR="${1:-${ADDR:-ai.hopzz.top}}"
 SRC="$(cd "$(dirname "$0")" && pwd)"
 APP="/opt/hopzz-chat"
 ACME="/var/www/certbot"
@@ -19,7 +19,17 @@ step() { echo; echo "========== $* =========="; }
 command -v nginx >/dev/null || { echo "没装 nginx：apt -y install nginx"; exit 1; }
 command -v python3 >/dev/null || { echo "没装 python3"; exit 1; }
 
-step "0. 目标域名：$DOMAIN"
+if [[ "$ADDR" == *:* ]]; then
+  MODE="ipport"
+  LISTEN_PORT="${ADDR##*:}"
+  HOST_ONLY="${ADDR%%:*}"
+else
+  MODE="domain"
+  LISTEN_PORT="443"
+  HOST_ONLY="$ADDR"
+fi
+
+step "0. 目标：$ADDR（模式：$MODE）"
 
 step "1. 目录与文件"
 mkdir -p "$APP/server" "$APP/static" "$APP/data" "$ACME"
@@ -57,44 +67,90 @@ sleep 2
 systemctl is-active --quiet hopzz-chat || { echo "启动失败："; journalctl -u hopzz-chat -n 30 --no-pager; exit 1; }
 curl -fsS --max-time 5 http://127.0.0.1:8100/api/setup-state && echo
 
-step "5. 证书（$DOMAIN）"
-if [[ ! -d "/etc/letsencrypt/live/$DOMAIN" ]]; then
-  cat > /etc/nginx/sites-available/_acme-temp.conf <<EOF
+if [[ "$MODE" == "domain" ]]; then
+  step "5. 证书（$HOST_ONLY）"
+  if [[ ! -d "/etc/letsencrypt/live/$HOST_ONLY" ]]; then
+    cat > /etc/nginx/sites-available/_acme-temp.conf <<EOF
 server {
     listen 80;
     listen [::]:80;
-    server_name $DOMAIN;
+    server_name $HOST_ONLY;
     location /.well-known/acme-challenge/ { root $ACME; }
     location / { return 200 'ok'; add_header Content-Type text/plain; }
 }
 EOF
-  ln -sf /etc/nginx/sites-available/_acme-temp.conf /etc/nginx/sites-enabled/_acme-temp.conf
-  nginx -t && systemctl reload nginx
-  command -v certbot >/dev/null || apt-get -y install certbot >/dev/null
-  certbot certonly --webroot -w "$ACME" -d "$DOMAIN" \
-    --non-interactive --agree-tos --register-unsafely-without-email --keep-until-expiring
-  rm -f /etc/nginx/sites-enabled/_acme-temp.conf /etc/nginx/sites-available/_acme-temp.conf
-else
-  echo "证书已存在，跳过"
+    ln -sf /etc/nginx/sites-available/_acme-temp.conf /etc/nginx/sites-enabled/_acme-temp.conf
+    nginx -t && systemctl reload nginx
+    command -v certbot >/dev/null || apt-get -y install certbot >/dev/null
+    certbot certonly --webroot -w "$ACME" -d "$HOST_ONLY" \
+      --non-interactive --agree-tos --register-unsafely-without-email --keep-until-expiring || true
+    rm -f /etc/nginx/sites-enabled/_acme-temp.conf /etc/nginx/sites-available/_acme-temp.conf
+  fi
+  if [[ ! -d "/etc/letsencrypt/live/$HOST_ONLY" ]]; then
+    echo "!! 证书没拿到（域名可能没解析到这台机器），自动改用 HTTP 模式"
+    MODE="ipport"
+    LISTEN_PORT="80"
+  fi
 fi
-[[ -d "/etc/letsencrypt/live/$DOMAIN" ]] || { echo "证书没拿到：域名解析或 80 端口有问题"; exit 2; }
 
 step "6. 安装 nginx 站点"
-sed "s/ai\.hopzz\.top/$DOMAIN/g" "$SRC/nginx/ai.hopzz.top.conf" \
-  > "/etc/nginx/sites-available/$DOMAIN.conf"
-ln -sf "/etc/nginx/sites-available/$DOMAIN.conf" "/etc/nginx/sites-enabled/$DOMAIN.conf"
+CONF="/etc/nginx/sites-available/hopzz-chat-$HOST_ONLY.conf"
+if [[ "$MODE" == "domain" ]]; then
+  sed "s/ai\.hopzz\.top/$HOST_ONLY/g" "$SRC/nginx/ai.hopzz.top.conf" > "$CONF"
+else
+  cat > "$CONF" <<EOF
+server {
+    listen $LISTEN_PORT;
+    listen [::]:$LISTEN_PORT;
+    server_name _;
+    client_max_body_size 0;
+    add_header X-Content-Type-Options nosniff always;
+
+    location /ws {
+        proxy_pass http://127.0.0.1:8100;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade \$http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host \$host;
+        proxy_read_timeout 3600s;
+        proxy_send_timeout 3600s;
+    }
+    location /agent-ws {
+        proxy_pass http://127.0.0.1:8100;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade \$http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host \$host;
+        proxy_read_timeout 3600s;
+        proxy_send_timeout 3600s;
+        access_log off;
+    }
+    location / {
+        proxy_pass http://127.0.0.1:8100;
+        proxy_http_version 1.1;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_read_timeout 360s;
+    }
+}
+EOF
+fi
+ln -sf "$CONF" "/etc/nginx/sites-enabled/$(basename "$CONF")"
 nginx -t
 systemctl reload nginx
 
 step "7. 验证"
-c1=$(curl -s -o /dev/null -w '%{http_code}' "https://$DOMAIN/" || echo ERR)
-c2=$(curl -s -o /dev/null -w '%{http_code}' "https://$DOMAIN/api/setup-state" || echo ERR)
+if [[ "$MODE" == "domain" ]]; then URL="https://$HOST_ONLY"; else URL="http://$HOST_ONLY:$LISTEN_PORT"; fi
+echo "访问地址：$URL"
+c1=$(curl -s -o /dev/null -w '%{http_code}' "$URL/" || echo ERR)
+c2=$(curl -s -o /dev/null -w '%{http_code}' "$URL/api/setup-state" || echo ERR)
 echo "首页 $c1   接口 $c2"
 
 TOKEN="$(grep '^AGENT_TOKEN=' "$APP/.env" | cut -d= -f2-)"
 echo
 echo "========== 完成 =========="
-echo "地址:      https://$DOMAIN"
-echo "插件地址:  wss://$DOMAIN/agent-ws（插件里填这个，或者从网页复制连接字符串）"
-echo "插件令牌:  $TOKEN"
+echo "网页地址:   $URL"
+if [[ "$MODE" == "domain" ]]; then echo "插件地址:   wss://$HOST_ONLY/agent-ws"; else echo "插件地址:   ws://$HOST_ONLY:$LISTEN_PORT/agent-ws"; fi
+echo "插件令牌:   $TOKEN"
 echo "首次打开网页会让你设置密码。"

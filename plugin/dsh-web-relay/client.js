@@ -272,7 +272,7 @@ window.__ModuleLoader__.load({
                 h('input', {
                   style: styles.input,
                   value: serverUrl,
-                  placeholder: 'wss://ai.hopzz.top/agent-ws',
+                  placeholder: '',
                   spellCheck: false,
                   onChange: (e) => setServerUrl(e.target.value),
                 })
@@ -285,7 +285,7 @@ window.__ModuleLoader__.load({
                   style: styles.input,
                   type: showToken ? 'text' : 'password',
                   value: agentToken,
-                  placeholder: '64 位十六进制',
+                  placeholder: '',
                   spellCheck: false,
                   onChange: (e) => setAgentToken(e.target.value),
                 }),
@@ -464,7 +464,7 @@ window.__ModuleLoader__.load({
         h('h3', { style: styles.title }, '常规设置'),
 
         h('p', { style: styles.hint }, '部署用的服务器信息（填了 IP + root 密码，一键部署就不用依赖本机 SSH 配置）'),
-        field('服务器 IP', host, setHost, '64.83.20.24'),
+        field('服务器地址', host, setHost, '64.83.20.24'),
         field('端口', port, setPort, '22'),
         field('用户名', user, setUser, 'root'),
         field('密码', password, setPassword, st.hasDeployPassword ? '已保存，留空则不修改' : 'root 密码', 'password'),
