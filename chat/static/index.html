@@ -10,7 +10,7 @@
   <link rel="icon" href="favicon.ico" sizes="any">
   <link rel="icon" href="icon.png" type="image/png" sizes="64x64">
   <link rel="apple-touch-icon" href="apple-touch-icon.png">
-  <link rel="stylesheet" href="app.css?v=7">
+  <link rel="stylesheet" href="app.css?v=8">
 </head>
 <body>
   <noscript><p class="noscript">请开启 JavaScript 后使用。</p></noscript>
@@ -213,7 +213,7 @@
     </div>
   </div>
 
-  <!-- ===== 设置（连接参数 + 修改密码） ===== -->
+  <!-- ===== 设置（连接参数 + 修改密码 + 插件管理） ===== -->
   <div class="modal-layer" id="settingsModal" hidden>
     <div class="modal-backdrop" id="settingsBackdrop"></div>
     <div class="modal-card settings-card" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
@@ -288,11 +288,26 @@
           </div>
         </form>
       </section>
+
+      <section class="settings-section" aria-labelledby="pluginSectionTitle">
+        <h3 class="settings-section-title" id="pluginSectionTitle">插件管理</h3>
+        <p class="settings-hint">这里装的是电脑上 DSH 的插件。安装需要联网，可能会花几十秒到几分钟。</p>
+        <div class="plugin-install">
+          <input class="text-input plugin-input" id="pluginSpecInput" type="text"
+                 placeholder="npm 包名 / git 地址 / 本地路径，例如 @tencent-connect/dsh-qqbot"
+                 autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
+          <button class="primary-btn modal-submit plugin-install-btn" id="pluginInstallBtn" type="button">安装</button>
+        </div>
+        <p class="plugin-result" id="pluginInstallResult" role="status" hidden></p>
+        <pre class="plugin-diagnostic" id="pluginDiagnostic" hidden></pre>
+        <div class="plugin-list" id="pluginList"></div>
+        <p class="plugin-empty" id="pluginEmpty" hidden>正在读取插件信息…</p>
+      </section>
     </div>
   </div>
 
   <div class="toast-host" id="toastHost" role="status" aria-live="polite"></div>
 
-  <script src="app.js?v=7"></script>
+  <script src="app.js?v=8"></script>
 </body>
 </html>

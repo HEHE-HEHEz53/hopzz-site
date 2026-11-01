@@ -24,6 +24,7 @@
   var PWD_SUCCESS_CLOSE_MS = 1200;
   var BUNDLE_CONFIRM_MS = 4000;
   var BUNDLE_FEEDBACK_MS = 9000;
+  var PLUGIN_CONFIRM_MS = 4000;
 
   /* ================= DOM ================= */
   var root = document.documentElement;
@@ -107,6 +108,13 @@
   var connString = document.getElementById('connString');
   var connStringCopy = document.getElementById('connStringCopy');
 
+  var pluginSpecInput = document.getElementById('pluginSpecInput');
+  var pluginInstallBtn = document.getElementById('pluginInstallBtn');
+  var pluginInstallResult = document.getElementById('pluginInstallResult');
+  var pluginDiagnostic = document.getElementById('pluginDiagnostic');
+  var pluginList = document.getElementById('pluginList');
+  var pluginEmpty = document.getElementById('pluginEmpty');
+
   var mobileMedia = window.matchMedia ? window.matchMedia(MOBILE_QUERY) : null;
 
   /* ================= 状态 ================= */
@@ -181,7 +189,13 @@
     /* 连接参数 */
     connInfo: null,
     connSeq: 0,
-    tokenVisible: false
+    tokenVisible: false,
+
+    /* 插件管理 */
+    pluginInstalling: false,
+    pluginRemoveBusy: '',
+    pluginRemoveConfirm: '',
+    pluginRemoveConfirmTimer: 0
   };
 
   /* 请求 id -> { resolve, reject, timer } */
@@ -963,6 +977,7 @@
     renderSidebar();
     updateHeader();
     if (state.infoOpen) renderInfoPanel();
+    if (!settingsModal.hidden) renderPluginList();
     updateChatEmptyState();
   }
 
@@ -1686,6 +1701,7 @@
     state.bundleBusy[bundle.name] = true;
     clearBundleFeedback(bundle.name);
     if (state.infoOpen) renderInfoPanel();
+    if (!settingsModal.hidden) renderPluginList();
 
     try {
       var data = await wsRequest('setBundle', {
@@ -1720,6 +1736,7 @@
     } finally {
       delete state.bundleBusy[bundle.name];
       if (state.infoOpen) renderInfoPanel();
+      if (!settingsModal.hidden) renderPluginList();
     }
   }
 
@@ -2367,6 +2384,262 @@
     }
   }
 
+  /* ================= 设置：插件管理 ================= */
+  function clearPluginResult() {
+    pluginInstallResult.hidden = true;
+    pluginInstallResult.textContent = '';
+    pluginInstallResult.classList.remove('is-ok', 'is-error');
+    pluginDiagnostic.hidden = true;
+    pluginDiagnostic.textContent = '';
+  }
+
+  function showPluginResult(text, kind) {
+    pluginInstallResult.textContent = typeof text === 'string' ? text : '';
+    pluginInstallResult.classList.toggle('is-ok', kind === 'ok');
+    pluginInstallResult.classList.toggle('is-error', kind === 'error');
+    pluginInstallResult.hidden = false;
+  }
+
+  function showPluginDiagnostic(text) {
+    var value = typeof text === 'string' ? text : '';
+    if (!value) {
+      pluginDiagnostic.hidden = true;
+      pluginDiagnostic.textContent = '';
+      return;
+    }
+    pluginDiagnostic.textContent = value;
+    pluginDiagnostic.hidden = false;
+  }
+
+  function setPluginInstallBusy(busy) {
+    state.pluginInstalling = !!busy;
+    pluginInstallBtn.disabled = !!busy;
+    pluginSpecInput.disabled = !!busy;
+    pluginInstallBtn.classList.toggle('is-loading', !!busy);
+    pluginInstallBtn.textContent = busy ? '正在安装…' : '安装';
+  }
+
+  function clearPluginRemoveConfirm() {
+    state.pluginRemoveConfirm = '';
+    if (state.pluginRemoveConfirmTimer) {
+      window.clearTimeout(state.pluginRemoveConfirmTimer);
+      state.pluginRemoveConfirmTimer = 0;
+    }
+  }
+
+  function pluginResultText(message, result) {
+    var text = message || '操作完成';
+    var application = result && typeof result.application === 'string' ? result.application : '';
+    if (application === 'restart-required') text += '（需要重启 DSH 后生效）';
+    else if (application === 'overridden') text += '（被更高优先级配置覆盖）';
+    else if (application === 'failed') text += '（失败）';
+    return text;
+  }
+
+  function pluginDiagnosticText(result) {
+    if (!result || typeof result !== 'object') return '';
+    if (typeof result.error === 'string') return result.error;
+    if (result.error && typeof result.error === 'object' &&
+        typeof result.error.diagnostic === 'string') {
+      return result.error.diagnostic;
+    }
+    return '';
+  }
+
+  async function reloadPluginSnapshot() {
+    if (!state.wsOpen) return;
+    await fetchSnapshot({ silent: true });
+    if (!settingsModal.hidden) renderPluginList();
+  }
+
+  function renderPluginList() {
+    pluginList.textContent = '';
+
+    var info = state.snapshot ? state.snapshot.info : null;
+    if (!info || !Array.isArray(info.bundles)) {
+      pluginEmpty.textContent = state.snapshotLoaded ? '没有插件信息' : '正在读取插件信息…';
+      pluginEmpty.hidden = false;
+      return;
+    }
+    if (!info.bundles.length) {
+      pluginEmpty.textContent = '还没有安装插件';
+      pluginEmpty.hidden = false;
+      return;
+    }
+    pluginEmpty.hidden = true;
+
+    for (var i = 0; i < info.bundles.length; i++) {
+      (function (bundle) {
+        var isRelay = isRelayBundle(bundle.name);
+        var busy = !!state.bundleBusy[bundle.name];
+        var removing = state.pluginRemoveBusy === bundle.name;
+        var armed = !isRelay && state.pluginRemoveConfirm === bundle.name;
+
+        var row = document.createElement('div');
+        row.className = 'plugin-row';
+        if (busy || removing) row.classList.add('is-busy');
+
+        var infoEl = document.createElement('div');
+        infoEl.className = 'plugin-info';
+
+        var nameRow = document.createElement('div');
+        nameRow.className = 'plugin-name-row';
+
+        var name = document.createElement('span');
+        name.className = 'plugin-name';
+        name.textContent = bundle.name;
+        name.setAttribute('title', bundle.name);
+        nameRow.appendChild(name);
+
+        if (isRelay) {
+          var badge = document.createElement('span');
+          badge.className = 'plugin-badge';
+          badge.textContent = '本页面';
+          nameRow.appendChild(badge);
+        }
+        infoEl.appendChild(nameRow);
+
+        var version = document.createElement('span');
+        version.className = 'plugin-version';
+        if (removing) version.textContent = '卸载中…';
+        else if (busy) version.textContent = '处理中…';
+        else version.textContent = bundle.version ? '版本 ' + bundle.version : '版本未知';
+        infoEl.appendChild(version);
+        row.appendChild(infoEl);
+
+        var actions = document.createElement('div');
+        actions.className = 'plugin-actions';
+
+        var toggle = document.createElement('button');
+        toggle.type = 'button';
+        toggle.className = 'switch' + (bundle.enabled ? ' is-on' : '') + (busy ? ' is-busy' : '');
+        toggle.setAttribute('role', 'switch');
+        toggle.setAttribute('aria-checked', bundle.enabled ? 'true' : 'false');
+        toggle.setAttribute('aria-label', (bundle.enabled ? '关闭 ' : '启用 ') + bundle.name);
+        toggle.disabled = isRelay || busy || !!state.unsupported.setBundle;
+        toggle.addEventListener('click', function () {
+          onBundleToggle(bundle);
+        });
+        actions.appendChild(toggle);
+
+        if (!isRelay) {
+          var removeBtn = document.createElement('button');
+          removeBtn.type = 'button';
+          removeBtn.className = 'plugin-remove-btn' + (armed ? ' is-confirm' : '');
+          removeBtn.textContent = removing ? '卸载中…' : (armed ? '确认卸载？' : '卸载');
+          removeBtn.disabled = removing || busy || !!state.pluginRemoveBusy;
+          removeBtn.addEventListener('click', function () {
+            onRemovePluginClick(bundle);
+          });
+          actions.appendChild(removeBtn);
+        }
+
+        row.appendChild(actions);
+        pluginList.appendChild(row);
+      })(info.bundles[i]);
+    }
+  }
+
+  async function onInstallPlugin() {
+    if (state.pluginInstalling) return;
+
+    var spec = pluginSpecInput.value.trim();
+    if (!spec) {
+      showPluginResult('请输入插件包名、git 地址或本地路径', 'error');
+      pluginSpecInput.focus();
+      return;
+    }
+
+    clearPluginResult();
+    setPluginInstallBusy(true);
+
+    try {
+      var data = await wsRequest('installPlugin', { spec: spec });
+      var result = data && data.result && typeof data.result === 'object' ? data.result : {};
+      var ok = data && data.ok === true;
+      var message = data && typeof data.message === 'string' && data.message
+        ? data.message
+        : (ok ? '已安装并生效' : '安装失败');
+
+      if (ok) {
+        var successText = pluginResultText(message, result);
+        showPluginResult(successText, result.application === 'failed' ? 'error' : 'ok');
+        showToast(successText);
+        pluginSpecInput.value = '';
+        setPluginInstallBusy(false);
+        await reloadPluginSnapshot();
+      } else {
+        showPluginResult(message, 'error');
+        showPluginDiagnostic(pluginDiagnosticText(result));
+      }
+    } catch (err) {
+      var failMessage = err && err.message ? err.message : '安装失败';
+      if (failMessage.indexOf('未知操作') >= 0) {
+        failMessage = '需要重启 DSH 才能使用这个功能';
+      }
+      showPluginResult(failMessage, 'error');
+    } finally {
+      setPluginInstallBusy(false);
+    }
+  }
+
+  function onRemovePluginClick(bundle) {
+    if (!bundle || state.pluginRemoveBusy) return;
+    if (isRelayBundle(bundle.name)) return;
+
+    if (state.pluginRemoveConfirm !== bundle.name) {
+      state.pluginRemoveConfirm = bundle.name;
+      if (state.pluginRemoveConfirmTimer) {
+        window.clearTimeout(state.pluginRemoveConfirmTimer);
+      }
+      state.pluginRemoveConfirmTimer = window.setTimeout(function () {
+        state.pluginRemoveConfirmTimer = 0;
+        state.pluginRemoveConfirm = '';
+        if (!settingsModal.hidden) renderPluginList();
+      }, PLUGIN_CONFIRM_MS);
+      renderPluginList();
+      return;
+    }
+
+    clearPluginRemoveConfirm();
+    performRemovePlugin(bundle);
+  }
+
+  async function performRemovePlugin(bundle) {
+    state.pluginRemoveBusy = bundle.name;
+    renderPluginList();
+
+    try {
+      var data = await wsRequest('removePlugin', { name: bundle.name });
+      var result = data && data.result && typeof data.result === 'object' ? data.result : {};
+      var ok = data && data.ok === true;
+      var message = data && typeof data.message === 'string' && data.message
+        ? data.message
+        : (ok ? '已卸载' : '卸载失败');
+
+      if (ok) {
+        var text = pluginResultText(message, result);
+        showPluginResult(text, result.application === 'failed' ? 'error' : 'ok');
+        showToast(text);
+        await reloadPluginSnapshot();
+      } else {
+        showPluginResult(message, 'error');
+        showPluginDiagnostic(pluginDiagnosticText(result));
+        showToast(message);
+      }
+    } catch (err) {
+      var failMessage = err && err.message ? err.message : '卸载失败';
+      if (failMessage.indexOf('未知操作') >= 0) {
+        failMessage = '需要重启 DSH 才能使用这个功能';
+      }
+      showPluginResult(failMessage, 'error');
+      showToast(failMessage);
+    } finally {
+      state.pluginRemoveBusy = '';
+      if (!settingsModal.hidden) renderPluginList();
+    }
+  }
+
   function openSettings() {
     if (state.view !== 'chat') return;
     closeDrawer();
@@ -2377,6 +2650,9 @@
       state.pwdCloseTimer = 0;
     }
     resetPasswordForm();
+    clearPluginRemoveConfirm();
+    setPluginInstallBusy(state.pluginInstalling);
+    renderPluginList();
     loadConnInfo();
     settingsModal.hidden = false;
     window.requestAnimationFrame(function () {
@@ -2386,6 +2662,7 @@
 
   function closeSettings() {
     if (settingsModal.hidden) return;
+    clearPluginRemoveConfirm();
     settingsModal.classList.remove('is-open');
     stopPasswordLockout();
     state.pwdBusy = false;
@@ -2400,6 +2677,7 @@
   }
 
   function closeSettingsImmediate() {
+    clearPluginRemoveConfirm();
     if (state.pwdCloseTimer) {
       window.clearTimeout(state.pwdCloseTimer);
       state.pwdCloseTimer = 0;
@@ -2961,6 +3239,15 @@
     closeSettingsImmediate();
     resetConnUi();
 
+    state.pluginInstalling = false;
+    state.pluginRemoveBusy = '';
+    clearPluginRemoveConfirm();
+    setPluginInstallBusy(false);
+    clearPluginResult();
+    pluginSpecInput.value = '';
+    pluginList.textContent = '';
+    pluginEmpty.hidden = true;
+
     messagesInner.textContent = '';
     messagesInner.appendChild(emptyHint);
     emptyHint.hidden = false;
@@ -3066,6 +3353,13 @@
     connTokenToggle.addEventListener('click', function () {
       state.tokenVisible = !state.tokenVisible;
       renderConnInfo();
+    });
+
+    pluginInstallBtn.addEventListener('click', onInstallPlugin);
+    pluginSpecInput.addEventListener('keydown', function (event) {
+      if (event.key !== 'Enter') return;
+      event.preventDefault();
+      onInstallPlugin();
     });
 
     sendBtn.addEventListener('click', sendCurrentMessage);
