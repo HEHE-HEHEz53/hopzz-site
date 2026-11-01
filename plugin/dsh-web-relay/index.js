@@ -28,7 +28,7 @@ export const name = 'web-relay';
 // 否则插件启动太早，ctx.get('webServer') 拿到 undefined，设置面板接口就全 404。
 export const inject = ['webServer'];
 
-const VERSION = '2.9.3';
+const VERSION = '2.9.4';
 const TAG = `[web-relay@${VERSION}]`;
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -309,7 +309,7 @@ export function apply(ctx, config = {}) {
       }
       return {
         ok: step.code === 0,
-        message: step.code === 0 ? '部署完成：' + addr : '安装脚本返回失败（可能是权限问题，需要 root）',
+        message: step.code === 0 ? '部署完成：' + addr : '安装脚本返回失败，请看下面的日志',
         log: logText,
       };
     }
