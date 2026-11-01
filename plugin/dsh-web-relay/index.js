@@ -23,7 +23,7 @@ import { spawn } from 'node:child_process';
 
 export const name = 'web-relay';
 
-const VERSION = '2.3.0';
+const VERSION = '2.4.0';
 const TAG = `[web-relay@${VERSION}]`;
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -45,6 +45,8 @@ export const Config = Schema.object({
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 export function apply(ctx, config) {
+  // 启动自检：万一后面抛错，也能知道 apply 走到这里了
+  writeBootInfo({ version: VERSION, stage: 'apply-start', at: new Date().toISOString(), routes: [], error: '' });
   const log = (...a) => console.log(TAG, ...a);
   const warn = (...a) => console.warn(TAG, ...a);
 
@@ -334,19 +336,64 @@ export function apply(ctx, config) {
   }
 
   function registerRoutes() {
+    const info = { version: VERSION, at: new Date().toISOString(), routes: [], error: '' };
     let web;
     try {
       web = ctx.get('webServer');
-    } catch {
+    } catch (err) {
       web = undefined;
+      info.error = 'ctx.get(webServer) 抛错: ' + String(err?.message ?? err);
     }
+    info.hasWebServer = !!web;
+    info.hasRegister = !!(web && typeof web.register === 'function');
+
     if (!web || typeof web.register !== 'function') {
       warn('webServer 不可用，设置面板的数据接口没有注册');
+      writeBootInfo(info);
       return;
     }
-    const dispose = web.register({ kind: 'prefix', path: '/web-relay/api', handler: handleRoute });
-    if (typeof ctx.effect === 'function') ctx.effect(() => dispose);
-    log('设置面板接口已注册：/web-relay/api/*');
+
+    // 同时注册 prefix 和每个精确路径：任意一种生效面板就能用
+    const paths = [
+      '/web-relay/api/status',
+      '/web-relay/api/settings',
+      '/web-relay/api/general',
+      '/web-relay/api/test',
+      '/web-relay/api/deploy',
+    ];
+
+    try {
+      const disposePrefix = web.register({
+        kind: 'prefix',
+        path: '/web-relay/api',
+        handler: handleRoute,
+      });
+      info.routes.push('prefix:/web-relay/api');
+      if (typeof ctx.effect === 'function') ctx.effect(() => disposePrefix);
+    } catch (err) {
+      info.error += ' prefix 注册失败: ' + String(err?.message ?? err) + ';';
+    }
+
+    for (const p of paths) {
+      try {
+        const dispose = web.register({ kind: 'exact', path: p, handler: handleRoute });
+        info.routes.push('exact:' + p);
+        if (typeof ctx.effect === 'function') ctx.effect(() => dispose);
+      } catch (err) {
+        info.error += ` ${p} 注册失败: ` + String(err?.message ?? err) + ';';
+      }
+    }
+
+    writeBootInfo(info);
+    log('设置面板接口已注册：' + info.routes.join(', '));
+  }
+
+  function writeBootInfo(info) {
+    try {
+      writeFileSync(join(HERE, 'boot.json'), JSON.stringify(info, null, 2), 'utf8');
+    } catch (err) {
+      warn('写 boot.json 失败:', err?.message ?? err);
+    }
   }
 
   // ------------------------------------------------------------ 服务访问

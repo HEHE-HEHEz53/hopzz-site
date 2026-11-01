@@ -1,1 +1,6 @@
-{ "meta": { "title": "Mobile Web Chat", "description": "Chat with DSH from the hopzz.top mobile web page. The plugin dials out to the relay server, so no public IP is required." } }
+{
+  "meta": {
+    "title": "Whale Girl Online",
+    "description": "Bridges your phone web page to the local DSH: real sessions, history, models and plugins on the go. The plugin dials out, so no public IP is needed."
+  }
+}

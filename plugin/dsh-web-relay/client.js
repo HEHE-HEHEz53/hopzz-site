@@ -560,7 +560,7 @@ window.__ModuleLoader__.load({
               name: 'settings.section',
               id: 'web-relay',
               order: 8,
-              label: '手机网页对话',
+              label: '鲸鱼娘在线',
             },
             SettingsSection
           )

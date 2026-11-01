@@ -1,21 +1,22 @@
 {
   "name": "@local/dsh-web-relay",
-  "version": "2.3.0",
+  "version": "2.4.0",
   "private": true,
   "type": "module",
-  "description": "把 DSH 接到 hopzz.top 的手机聊天网页（插件主动外连，无需公网 IP）",
+  "description": "鲸鱼娘在线 —— 把手机网页接到电脑上的 DSH，随时随地聊你的会话",
+  "icon": "./icon.png",
   "exports": {
     ".": "./index.js",
     "./client": "./client.js",
     "./locale/*.json": "./locale/*.json",
-    "./icon": "./icon.svg"
+    "./icon": "./icon.png"
   },
   "files": [
     "index.js",
     "client.js",
     "cordis.patch.yml",
     "locale/*.json",
-    "icon.svg"
+    "icon.png"
   ],
   "dependencies": {},
   "peerDependencies": {
