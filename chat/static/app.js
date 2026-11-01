@@ -114,6 +114,7 @@
   var pluginDiagnostic = document.getElementById('pluginDiagnostic');
   var pluginList = document.getElementById('pluginList');
   var pluginEmpty = document.getElementById('pluginEmpty');
+  var aboutVersion = document.getElementById('aboutVersion');
 
   var mobileMedia = window.matchMedia ? window.matchMedia(MOBILE_QUERY) : null;
 
@@ -190,6 +191,15 @@
     connInfo: null,
     connSeq: 0,
     tokenVisible: false,
+
+    /* 信息面板折叠状态（默认展开模型 / 模式） */
+    infoAccordionOpen: {
+      '模型': true,
+      '模式': true,
+      '权限': false,
+      '插件': false,
+      '项目': false
+    },
 
     /* 插件管理 */
     pluginInstalling: false,
@@ -978,6 +988,7 @@
     updateHeader();
     if (state.infoOpen) renderInfoPanel();
     if (!settingsModal.hidden) renderPluginList();
+    updateAboutVersion();
     updateChatEmptyState();
   }
 
@@ -1740,6 +1751,124 @@
     }
   }
 
+  /* ================= 折叠分组 ================= */
+  function setAccordionItemOpen(item, open) {
+    if (!item) return;
+    var head = item.querySelector('.acc-head');
+    var panel = item.querySelector('.acc-panel');
+    item.classList.toggle('is-open', open);
+    if (head) head.setAttribute('aria-expanded', open ? 'true' : 'false');
+    if (panel) panel.setAttribute('aria-hidden', open ? 'false' : 'true');
+  }
+
+  function createAccordionHead(label, open) {
+    var head = document.createElement('button');
+    head.type = 'button';
+    head.className = 'acc-head';
+    head.setAttribute('aria-expanded', open ? 'true' : 'false');
+
+    var title = document.createElement('span');
+    title.className = 'acc-title';
+    title.textContent = label;
+
+    var arrow = document.createElement('span');
+    arrow.className = 'acc-arrow';
+    arrow.setAttribute('aria-hidden', 'true');
+
+    head.appendChild(title);
+    head.appendChild(arrow);
+    return head;
+  }
+
+  function resetSettingsAccordion() {
+    var items = settingsModal.querySelectorAll('.acc-item');
+    for (var i = 0; i < items.length; i++) {
+      setAccordionItemOpen(items[i], items[i].getAttribute('data-acc') === 'conn');
+    }
+  }
+
+  function setupSettingsAccordion() {
+    var items = settingsModal.querySelectorAll('.acc-item');
+    for (var i = 0; i < items.length; i++) {
+      (function (item) {
+        var head = item.querySelector('.acc-head');
+        if (!head) return;
+        head.addEventListener('click', function () {
+          setAccordionItemOpen(item, !item.classList.contains('is-open'));
+        });
+      })(items[i]);
+    }
+    resetSettingsAccordion();
+  }
+
+  function resetInfoAccordionState() {
+    state.infoAccordionOpen = {
+      '模型': true,
+      '模式': true,
+      '权限': false,
+      '插件': false,
+      '项目': false
+    };
+  }
+
+  function decorateInfoAccordions() {
+    var sections = infoBody.querySelectorAll('.info-section');
+    for (var i = 0; i < sections.length; i++) {
+      (function (section) {
+        if (section.classList.contains('info-accordion')) return;
+
+        var heading = section.querySelector('.info-section-title');
+        var title = heading ? heading.textContent : '';
+        if (heading && heading.parentNode === section) section.removeChild(heading);
+
+        if (typeof state.infoAccordionOpen[title] !== 'boolean') {
+          state.infoAccordionOpen[title] = title === '模型' || title === '模式';
+        }
+        var open = state.infoAccordionOpen[title];
+
+        var head = createAccordionHead(title, open);
+        head.addEventListener('click', function () {
+          var next = !section.classList.contains('is-open');
+          state.infoAccordionOpen[title] = next;
+          setAccordionItemOpen(section, next);
+        });
+
+        var panel = document.createElement('div');
+        panel.className = 'acc-panel';
+        var inner = document.createElement('div');
+        inner.className = 'acc-panel-inner';
+
+        while (section.firstChild) inner.appendChild(section.firstChild);
+        panel.appendChild(inner);
+
+        var headingWrap = document.createElement('h3');
+        headingWrap.className = 'acc-heading';
+        headingWrap.appendChild(head);
+
+        section.appendChild(headingWrap);
+        section.appendChild(panel);
+        section.classList.add('info-accordion');
+        setAccordionItemOpen(section, open);
+      })(sections[i]);
+    }
+  }
+
+  function updateAboutVersion() {
+    var version = '';
+    var bundles = state.snapshot && state.snapshot.info
+      ? state.snapshot.info.bundles
+      : null;
+
+    if (Array.isArray(bundles)) {
+      for (var i = 0; i < bundles.length; i++) {
+        if (isRelayBundle(bundles[i].name) && bundles[i].version) {
+          version = String(bundles[i].version);
+        }
+      }
+    }
+    if (aboutVersion) aboutVersion.textContent = version || '未知';
+  }
+
   /* ================= 信息面板渲染 ================= */
   function renderInfoPanel() {
     var info = state.snapshot ? state.snapshot.info : null;
@@ -1930,6 +2059,7 @@
     }
     infoBody.appendChild(workspaceSection);
 
+    decorateInfoAccordions();
     infoBody.scrollTop = scrollTop;
   }
 
@@ -1970,6 +2100,7 @@
     closeCreateModalImmediate();
     closeSettingsImmediate();
     state.infoOpen = true;
+    resetInfoAccordionState();
     renderInfoPanel();
     infoLayer.hidden = false;
     window.requestAnimationFrame(function () {
@@ -2653,6 +2784,8 @@
     clearPluginRemoveConfirm();
     setPluginInstallBusy(state.pluginInstalling);
     renderPluginList();
+    resetSettingsAccordion();
+    updateAboutVersion();
     loadConnInfo();
     settingsModal.hidden = false;
     window.requestAnimationFrame(function () {
@@ -3247,6 +3380,7 @@
     pluginSpecInput.value = '';
     pluginList.textContent = '';
     pluginEmpty.hidden = true;
+    resetInfoAccordionState();
 
     messagesInner.textContent = '';
     messagesInner.appendChild(emptyHint);
@@ -3323,6 +3457,7 @@
   function bindEvents() {
     loginForm.addEventListener('submit', onLoginSubmit);
     setupForm.addEventListener('submit', onSetupSubmit);
+    setupSettingsAccordion();
     themeBtn.addEventListener('click', toggleTheme);
     logoutBtn.addEventListener('click', onLogoutClick);
     infoBtn.addEventListener('click', openInfo);

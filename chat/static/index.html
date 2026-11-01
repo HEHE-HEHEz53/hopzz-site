@@ -10,7 +10,7 @@
   <link rel="icon" href="favicon.ico" sizes="any">
   <link rel="icon" href="icon.png" type="image/png" sizes="64x64">
   <link rel="apple-touch-icon" href="apple-touch-icon.png">
-  <link rel="stylesheet" href="app.css?v=8">
+  <link rel="stylesheet" href="app.css?v=9">
 </head>
 <body>
   <noscript><p class="noscript">请开启 JavaScript 后使用。</p></noscript>
@@ -34,7 +34,7 @@
       <p class="form-error" id="loginError" role="alert" hidden>密码不对</p>
       <button class="primary-btn" id="loginBtn" type="submit">进入</button>
     </form>
-    <p class="site-footer">鲸鱼娘在线 · 和电脑上的 DSH 对话</p>
+    <p class="site-footer">鲸鱼娘在线 · 和电脑上的 DSH 对话<br><span class="site-copyright">© 2026 HEHEz53 · 由 DeepSeek（鲸鱼娘）搭建</span></p>
   </section>
 
   <!-- ===== 首次设置密码 ===== -->
@@ -60,7 +60,7 @@
       <p class="form-error" id="setupError" role="alert" hidden></p>
       <button class="primary-btn" id="setupBtn" type="submit">设置并进入</button>
     </form>
-    <p class="site-footer">鲸鱼娘在线 · 和电脑上的 DSH 对话</p>
+    <p class="site-footer">鲸鱼娘在线 · 和电脑上的 DSH 对话<br><span class="site-copyright">© 2026 HEHEz53 · 由 DeepSeek（鲸鱼娘）搭建</span></p>
   </section>
 
   <!-- ===== 聊天页 ===== -->
@@ -166,6 +166,8 @@
           </button>
         </main>
 
+        <footer class="chat-copyright">© 2026 HEHEz53 · 由 DeepSeek（鲸鱼娘）搭建</footer>
+
         <footer class="composer">
           <div class="composer-inner">
             <label class="sr-only" for="input">消息输入框</label>
@@ -213,7 +215,7 @@
     </div>
   </div>
 
-  <!-- ===== 设置（连接参数 + 修改密码 + 插件管理） ===== -->
+  <!-- ===== 设置（折叠分组：连接 / 插件管理 / 安全 / 关于） ===== -->
   <div class="modal-layer" id="settingsModal" hidden>
     <div class="modal-backdrop" id="settingsBackdrop"></div>
     <div class="modal-card settings-card" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
@@ -222,92 +224,143 @@
         <button class="icon-btn modal-close" id="settingsClose" type="button" aria-label="关闭设置">×</button>
       </div>
 
-      <section class="settings-section" aria-labelledby="connSectionTitle">
-        <h3 class="settings-section-title" id="connSectionTitle">连接参数</h3>
-        <p class="settings-hint">在 DSH 插件「手机网页对话」的设置里，可以分别填前两项，也可以直接粘贴第三项连接字符串。</p>
-        <div class="conn-list" id="connList">
-          <p class="conn-loading" id="connLoading">正在读取连接参数…</p>
-          <div class="conn-items" id="connItems" hidden>
-            <div class="conn-item">
-              <div class="conn-item-head">
-                <span class="conn-label">服务器地址</span>
-                <span class="conn-actions">
-                  <button class="copy-btn" id="connServerCopy" type="button" disabled>复制</button>
-                </span>
+      <div class="settings-accordion" id="settingsAccordion">
+        <section class="acc-item is-open" data-acc="conn">
+          <h3 class="acc-heading">
+            <button class="acc-head" id="accConnHead" type="button"
+                    aria-expanded="true" aria-controls="accConnPanel">
+              <span class="acc-title">连接</span>
+              <span class="acc-arrow" aria-hidden="true"></span>
+            </button>
+          </h3>
+          <div class="acc-panel" id="accConnPanel" aria-hidden="false">
+            <div class="acc-panel-inner">
+              <p class="settings-hint">在 DSH 插件「手机网页对话」的设置里，可以分别填前两项，也可以直接粘贴第三项连接字符串。</p>
+              <div class="conn-list" id="connList">
+                <p class="conn-loading" id="connLoading">正在读取连接参数…</p>
+                <div class="conn-items" id="connItems" hidden>
+                  <div class="conn-item">
+                    <div class="conn-item-head">
+                      <span class="conn-label">服务器地址</span>
+                      <span class="conn-actions">
+                        <button class="copy-btn" id="connServerCopy" type="button" disabled>复制</button>
+                      </span>
+                    </div>
+                    <div class="conn-value" id="connServer"></div>
+                  </div>
+                  <div class="conn-item">
+                    <div class="conn-item-head">
+                      <span class="conn-label">插件令牌</span>
+                      <span class="conn-actions">
+                        <button class="token-toggle" id="connTokenToggle" type="button" aria-pressed="false">显示</button>
+                        <button class="copy-btn" id="connTokenCopy" type="button" disabled>复制</button>
+                      </span>
+                    </div>
+                    <div class="conn-value" id="connToken"></div>
+                  </div>
+                  <div class="conn-item">
+                    <div class="conn-item-head">
+                      <span class="conn-label">连接字符串</span>
+                      <span class="conn-actions">
+                        <button class="copy-btn" id="connStringCopy" type="button" disabled>复制</button>
+                      </span>
+                    </div>
+                    <div class="conn-value" id="connString"></div>
+                  </div>
+                </div>
+                <p class="conn-error" id="connError" role="alert" hidden></p>
               </div>
-              <div class="conn-value" id="connServer"></div>
-            </div>
-            <div class="conn-item">
-              <div class="conn-item-head">
-                <span class="conn-label">插件令牌</span>
-                <span class="conn-actions">
-                  <button class="token-toggle" id="connTokenToggle" type="button" aria-pressed="false">显示</button>
-                  <button class="copy-btn" id="connTokenCopy" type="button" disabled>复制</button>
-                </span>
-              </div>
-              <div class="conn-value" id="connToken"></div>
-            </div>
-            <div class="conn-item">
-              <div class="conn-item-head">
-                <span class="conn-label">连接字符串</span>
-                <span class="conn-actions">
-                  <button class="copy-btn" id="connStringCopy" type="button" disabled>复制</button>
-                </span>
-              </div>
-              <div class="conn-value" id="connString"></div>
+              <p class="settings-note">改完密码后令牌不变，连接参数也不变。</p>
             </div>
           </div>
-          <p class="conn-error" id="connError" role="alert" hidden></p>
-        </div>
-        <p class="settings-note">改完密码后令牌不变，连接参数也不变。</p>
-      </section>
+        </section>
 
-      <section class="settings-section" aria-labelledby="pwdSectionTitle">
-        <h3 class="settings-section-title" id="pwdSectionTitle">修改密码</h3>
-        <form class="pwd-form" id="passwordForm" novalidate>
-          <label class="modal-field">
-            <span class="modal-label">原密码</span>
-            <input class="text-input" id="oldPassword" type="password" placeholder="原密码"
-                   autocomplete="current-password" required>
-          </label>
-          <label class="modal-field">
-            <span class="modal-label">新密码</span>
-            <input class="text-input" id="newPassword" type="password" placeholder="至少 8 位"
-                   autocomplete="new-password" required>
-          </label>
-          <label class="modal-field">
-            <span class="modal-label">确认新密码</span>
-            <input class="text-input" id="confirmPassword" type="password" placeholder="再输入一次"
-                   autocomplete="new-password" required>
-          </label>
-          <p class="form-error" id="passwordError" role="alert" hidden></p>
-          <p class="form-success" id="passwordSuccess" role="status" hidden>密码已修改</p>
-          <div class="modal-actions">
-            <button class="ghost-btn" id="passwordCancel" type="button">取消</button>
-            <button class="primary-btn modal-submit" id="passwordSubmit" type="submit">保存</button>
+        <section class="acc-item" data-acc="plugins">
+          <h3 class="acc-heading">
+            <button class="acc-head" id="accPluginsHead" type="button"
+                    aria-expanded="false" aria-controls="accPluginsPanel">
+              <span class="acc-title">插件管理</span>
+              <span class="acc-arrow" aria-hidden="true"></span>
+            </button>
+          </h3>
+          <div class="acc-panel" id="accPluginsPanel" aria-hidden="true">
+            <div class="acc-panel-inner">
+              <p class="settings-hint">这里装的是电脑上 DSH 的插件。安装需要联网，可能会花几十秒到几分钟。</p>
+              <div class="plugin-install">
+                <input class="text-input plugin-input" id="pluginSpecInput" type="text"
+                       placeholder="npm 包名 / git 地址 / 本地路径，例如 @tencent-connect/dsh-qqbot"
+                       autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
+                <button class="primary-btn modal-submit plugin-install-btn" id="pluginInstallBtn" type="button">安装</button>
+              </div>
+              <p class="plugin-result" id="pluginInstallResult" role="status" hidden></p>
+              <pre class="plugin-diagnostic" id="pluginDiagnostic" hidden></pre>
+              <div class="plugin-list" id="pluginList"></div>
+              <p class="plugin-empty" id="pluginEmpty" hidden>正在读取插件信息…</p>
+            </div>
           </div>
-        </form>
-      </section>
+        </section>
 
-      <section class="settings-section" aria-labelledby="pluginSectionTitle">
-        <h3 class="settings-section-title" id="pluginSectionTitle">插件管理</h3>
-        <p class="settings-hint">这里装的是电脑上 DSH 的插件。安装需要联网，可能会花几十秒到几分钟。</p>
-        <div class="plugin-install">
-          <input class="text-input plugin-input" id="pluginSpecInput" type="text"
-                 placeholder="npm 包名 / git 地址 / 本地路径，例如 @tencent-connect/dsh-qqbot"
-                 autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
-          <button class="primary-btn modal-submit plugin-install-btn" id="pluginInstallBtn" type="button">安装</button>
-        </div>
-        <p class="plugin-result" id="pluginInstallResult" role="status" hidden></p>
-        <pre class="plugin-diagnostic" id="pluginDiagnostic" hidden></pre>
-        <div class="plugin-list" id="pluginList"></div>
-        <p class="plugin-empty" id="pluginEmpty" hidden>正在读取插件信息…</p>
-      </section>
+        <section class="acc-item" data-acc="security">
+          <h3 class="acc-heading">
+            <button class="acc-head" id="accSecurityHead" type="button"
+                    aria-expanded="false" aria-controls="accSecurityPanel">
+              <span class="acc-title">安全</span>
+              <span class="acc-arrow" aria-hidden="true"></span>
+            </button>
+          </h3>
+          <div class="acc-panel" id="accSecurityPanel" aria-hidden="true">
+            <div class="acc-panel-inner">
+              <form class="pwd-form" id="passwordForm" novalidate>
+                <label class="modal-field">
+                  <span class="modal-label">原密码</span>
+                  <input class="text-input" id="oldPassword" type="password" placeholder="原密码"
+                         autocomplete="current-password" required>
+                </label>
+                <label class="modal-field">
+                  <span class="modal-label">新密码</span>
+                  <input class="text-input" id="newPassword" type="password" placeholder="至少 8 位"
+                         autocomplete="new-password" required>
+                </label>
+                <label class="modal-field">
+                  <span class="modal-label">确认新密码</span>
+                  <input class="text-input" id="confirmPassword" type="password" placeholder="再输入一次"
+                         autocomplete="new-password" required>
+                </label>
+                <p class="form-error" id="passwordError" role="alert" hidden></p>
+                <p class="form-success" id="passwordSuccess" role="status" hidden>密码已修改</p>
+                <div class="modal-actions">
+                  <button class="ghost-btn" id="passwordCancel" type="button">取消</button>
+                  <button class="primary-btn modal-submit" id="passwordSubmit" type="submit">保存</button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </section>
+
+        <section class="acc-item" data-acc="about">
+          <h3 class="acc-heading">
+            <button class="acc-head" id="accAboutHead" type="button"
+                    aria-expanded="false" aria-controls="accAboutPanel">
+              <span class="acc-title">关于</span>
+              <span class="acc-arrow" aria-hidden="true"></span>
+            </button>
+          </h3>
+          <div class="acc-panel" id="accAboutPanel" aria-hidden="true">
+            <div class="acc-panel-inner">
+              <div class="about-block">
+                <p class="about-meta">插件版本 <span id="aboutVersion">—</span></p>
+                <p class="about-line">鲸鱼娘在线 · 在手机上和电脑里的 DSH 聊天</p>
+                <p class="about-copy">© 2026 HEHEz53 · 由 DeepSeek（鲸鱼娘）搭建</p>
+              </div>
+            </div>
+          </div>
+        </section>
+      </div>
     </div>
   </div>
 
   <div class="toast-host" id="toastHost" role="status" aria-live="polite"></div>
 
-  <script src="app.js?v=8"></script>
+  <script src="app.js?v=9"></script>
 </body>
 </html>
