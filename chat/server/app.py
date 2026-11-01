@@ -189,14 +189,24 @@ def verify_session(value: Optional[str]) -> bool:
     return version == current_pwd_version()
 
 
-def set_login_cookie(resp: JSONResponse) -> None:
+def request_is_https(request) -> bool:
+    """判断当前请求是不是 HTTPS：HTTP 下发的 Secure cookie 会被浏览器直接丢弃，
+    导致"刚登录就过期"，所以必须按实际协议设置。"""
+    proto = (request.headers.get("x-forwarded-proto") or "").split(",")[0].strip().lower()
+    if proto:
+        return proto == "https"
+    return request.url.scheme == "https"
+
+
+def set_login_cookie(resp: JSONResponse, request=None) -> None:
     expires = int(time.time()) + COOKIE_MAX_AGE
+    secure = request_is_https(request) if request is not None else True
     resp.set_cookie(
         key=COOKIE_NAME,
         value=sign_session(expires, current_pwd_version()),
         max_age=COOKIE_MAX_AGE,
         httponly=True,
-        secure=True,
+        secure=secure,
         samesite="lax",
         path="/",
     )
@@ -311,7 +321,7 @@ async def setup(request: Request) -> Any:
     print("[relay] 首次密码已设置", flush=True)
 
     resp = JSONResponse({"ok": True})
-    set_login_cookie(resp)
+    set_login_cookie(resp, request)
     return resp
 
 
@@ -369,7 +379,7 @@ async def login(request: Request) -> Any:
 
     register_success()
     resp = JSONResponse({"ok": True})
-    set_login_cookie(resp)
+    set_login_cookie(resp, request)
     return resp
 
 
@@ -424,7 +434,7 @@ async def change_password(request: Request) -> Any:
     print("[relay] 登录密码已修改，所有旧登录态失效", flush=True)
 
     resp = JSONResponse({"ok": True})
-    set_login_cookie(resp)
+    set_login_cookie(resp, request)
     return resp
 
 
