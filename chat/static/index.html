@@ -10,7 +10,7 @@
   <link rel="icon" href="favicon.ico" sizes="any">
   <link rel="icon" href="icon.png" type="image/png" sizes="64x64">
   <link rel="apple-touch-icon" href="apple-touch-icon.png">
-  <link rel="stylesheet" href="app.css?v=6">
+  <link rel="stylesheet" href="app.css?v=7">
 </head>
 <body>
   <noscript><p class="noscript">请开启 JavaScript 后使用。</p></noscript>
@@ -33,6 +33,32 @@
       </div>
       <p class="form-error" id="loginError" role="alert" hidden>密码不对</p>
       <button class="primary-btn" id="loginBtn" type="submit">进入</button>
+    </form>
+    <p class="site-footer">鲸鱼娘在线 · 和电脑上的 DSH 对话</p>
+  </section>
+
+  <!-- ===== 首次设置密码 ===== -->
+  <section class="view login-view" id="setupView" hidden>
+    <form class="login-card" id="setupForm" novalidate>
+      <div class="login-mark" aria-hidden="true">
+        <img class="login-avatar" src="avatar.jpg" alt="鲸鱼娘头像">
+      </div>
+      <h1 class="login-title">鲸鱼娘在线</h1>
+      <p class="login-sub">第一次使用，先设置一个访问密码</p>
+      <div class="field">
+        <label class="sr-only" for="setupPassword">设置密码</label>
+        <input class="text-input" id="setupPassword" name="setupPassword" type="password"
+               placeholder="设置密码（至少 8 位）" autocomplete="new-password"
+               autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="next" required>
+      </div>
+      <div class="field">
+        <label class="sr-only" for="setupConfirm">确认密码</label>
+        <input class="text-input" id="setupConfirm" name="setupConfirm" type="password"
+               placeholder="再输入一次密码" autocomplete="new-password"
+               autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="done" required>
+      </div>
+      <p class="form-error" id="setupError" role="alert" hidden></p>
+      <button class="primary-btn" id="setupBtn" type="submit">设置并进入</button>
     </form>
     <p class="site-footer">鲸鱼娘在线 · 和电脑上的 DSH 对话</p>
   </section>
@@ -187,43 +213,86 @@
     </div>
   </div>
 
-  <!-- ===== 设置（修改密码） ===== -->
+  <!-- ===== 设置（连接参数 + 修改密码） ===== -->
   <div class="modal-layer" id="settingsModal" hidden>
     <div class="modal-backdrop" id="settingsBackdrop"></div>
-    <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
+    <div class="modal-card settings-card" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
       <div class="modal-head">
         <h2 class="modal-title" id="settingsTitle">设置</h2>
         <button class="icon-btn modal-close" id="settingsClose" type="button" aria-label="关闭设置">×</button>
       </div>
-      <p class="modal-sub">修改登录密码</p>
-      <form class="pwd-form" id="passwordForm" novalidate>
-        <label class="modal-field">
-          <span class="modal-label">原密码</span>
-          <input class="text-input" id="oldPassword" type="password" placeholder="原密码"
-                 autocomplete="current-password" required>
-        </label>
-        <label class="modal-field">
-          <span class="modal-label">新密码</span>
-          <input class="text-input" id="newPassword" type="password" placeholder="至少 8 位"
-                 autocomplete="new-password" required>
-        </label>
-        <label class="modal-field">
-          <span class="modal-label">确认新密码</span>
-          <input class="text-input" id="confirmPassword" type="password" placeholder="再输入一次"
-                 autocomplete="new-password" required>
-        </label>
-        <p class="form-error" id="passwordError" role="alert" hidden></p>
-        <p class="form-success" id="passwordSuccess" role="status" hidden>密码已修改</p>
-        <div class="modal-actions">
-          <button class="ghost-btn" id="passwordCancel" type="button">取消</button>
-          <button class="primary-btn modal-submit" id="passwordSubmit" type="submit">保存</button>
+
+      <section class="settings-section" aria-labelledby="connSectionTitle">
+        <h3 class="settings-section-title" id="connSectionTitle">连接参数</h3>
+        <p class="settings-hint">在 DSH 插件「手机网页对话」的设置里，可以分别填前两项，也可以直接粘贴第三项连接字符串。</p>
+        <div class="conn-list" id="connList">
+          <p class="conn-loading" id="connLoading">正在读取连接参数…</p>
+          <div class="conn-items" id="connItems" hidden>
+            <div class="conn-item">
+              <div class="conn-item-head">
+                <span class="conn-label">服务器地址</span>
+                <span class="conn-actions">
+                  <button class="copy-btn" id="connServerCopy" type="button" disabled>复制</button>
+                </span>
+              </div>
+              <div class="conn-value" id="connServer"></div>
+            </div>
+            <div class="conn-item">
+              <div class="conn-item-head">
+                <span class="conn-label">插件令牌</span>
+                <span class="conn-actions">
+                  <button class="token-toggle" id="connTokenToggle" type="button" aria-pressed="false">显示</button>
+                  <button class="copy-btn" id="connTokenCopy" type="button" disabled>复制</button>
+                </span>
+              </div>
+              <div class="conn-value" id="connToken"></div>
+            </div>
+            <div class="conn-item">
+              <div class="conn-item-head">
+                <span class="conn-label">连接字符串</span>
+                <span class="conn-actions">
+                  <button class="copy-btn" id="connStringCopy" type="button" disabled>复制</button>
+                </span>
+              </div>
+              <div class="conn-value" id="connString"></div>
+            </div>
+          </div>
+          <p class="conn-error" id="connError" role="alert" hidden></p>
         </div>
-      </form>
+        <p class="settings-note">改完密码后令牌不变，连接参数也不变。</p>
+      </section>
+
+      <section class="settings-section" aria-labelledby="pwdSectionTitle">
+        <h3 class="settings-section-title" id="pwdSectionTitle">修改密码</h3>
+        <form class="pwd-form" id="passwordForm" novalidate>
+          <label class="modal-field">
+            <span class="modal-label">原密码</span>
+            <input class="text-input" id="oldPassword" type="password" placeholder="原密码"
+                   autocomplete="current-password" required>
+          </label>
+          <label class="modal-field">
+            <span class="modal-label">新密码</span>
+            <input class="text-input" id="newPassword" type="password" placeholder="至少 8 位"
+                   autocomplete="new-password" required>
+          </label>
+          <label class="modal-field">
+            <span class="modal-label">确认新密码</span>
+            <input class="text-input" id="confirmPassword" type="password" placeholder="再输入一次"
+                   autocomplete="new-password" required>
+          </label>
+          <p class="form-error" id="passwordError" role="alert" hidden></p>
+          <p class="form-success" id="passwordSuccess" role="status" hidden>密码已修改</p>
+          <div class="modal-actions">
+            <button class="ghost-btn" id="passwordCancel" type="button">取消</button>
+            <button class="primary-btn modal-submit" id="passwordSubmit" type="submit">保存</button>
+          </div>
+        </form>
+      </section>
     </div>
   </div>
 
   <div class="toast-host" id="toastHost" role="status" aria-live="polite"></div>
 
-  <script src="app.js?v=6"></script>
+  <script src="app.js?v=7"></script>
 </body>
 </html>

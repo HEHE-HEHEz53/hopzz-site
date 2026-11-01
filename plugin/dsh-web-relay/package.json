@@ -1,6 +1,6 @@
 {
   "name": "@local/dsh-web-relay",
-  "version": "2.1.0",
+  "version": "2.2.0",
   "private": true,
   "type": "module",
   "description": "把 DSH 接到 hopzz.top 的手机聊天网页（插件主动外连，无需公网 IP）",

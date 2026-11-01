@@ -19,14 +19,19 @@ import Schema from '@deepseek-ai/schemastery';
 
 export const name = 'web-relay';
 
-const VERSION = '2.1.0';
+const VERSION = '2.2.0';
 const TAG = `[web-relay@${VERSION}]`;
 
 export const Config = Schema.object({
+  connectString: Schema.string()
+    .default('')
+    .description(
+      '连接字符串：在网页「设置 → 连接参数」里复制那一大串粘到这里即可；填了它就不必再填下面的分项'
+    ),
   serverUrl: Schema.string()
-    .default('wss://chat.hopzz.top/agent-ws')
+    .default('wss://ai.hopzz.top/agent-ws')
     .description('中继服务器地址（WebSocket）'),
-  agentToken: Schema.string().default('').description('插件令牌'),
+  agentToken: Schema.string().default('').description('插件令牌（在网页设置里能看到）'),
   maxReconnectMs: Schema.natural().default(30000).description('断线重连最大间隔（毫秒）'),
 });
 
@@ -477,14 +482,58 @@ export function apply(ctx, config) {
     }, delay);
   }
 
+  // ------------------------------------------------------------ 连接字符串
+  /**
+   * 网页「设置 → 连接参数」里给的那一大串：whale1.<base64url(json)>
+   * json = {"v":1,"url":"wss://.../agent-ws","token":"..."}
+   * 填了就优先用它，不用再分别填地址和令牌。
+   */
+  function parseConnectString(raw) {
+    const text = String(raw || '').trim();
+    if (!text) return null;
+    const matched = /^whale1\.([A-Za-z0-9_-]+)$/.exec(text);
+    if (!matched) {
+      warn('连接字符串格式不对，应以 whale1. 开头');
+      return null;
+    }
+    try {
+      let b64 = matched[1].replace(/-/g, '+').replace(/_/g, '/');
+      while (b64.length % 4 !== 0) b64 += '=';
+      const json = Buffer.from(b64, 'base64').toString('utf8');
+      const obj = JSON.parse(json);
+      if (!obj || typeof obj.url !== 'string' || !obj.url) return null;
+      return {
+        serverUrl: obj.url,
+        agentToken: typeof obj.token === 'string' ? obj.token : '',
+      };
+    } catch (err) {
+      warn('连接字符串解析失败:', err?.message ?? err);
+      return null;
+    }
+  }
+
+  /** 实际生效的连接配置：连接字符串优先，其次分项配置 */
+  function effectiveConnection() {
+    const parsed = parseConnectString(config.connectString);
+    if (parsed) {
+      return { ...parsed, source: 'connectString' };
+    }
+    return {
+      serverUrl: config.serverUrl,
+      agentToken: config.agentToken,
+      source: 'fields',
+    };
+  }
+
   function connect() {
     if (stopped) return;
-    if (!config.agentToken) {
-      warn('没有配置 agentToken，插件不会连接');
+    const conn = effectiveConnection();
+    if (!conn.agentToken) {
+      warn('没有配置令牌（也没填连接字符串），插件不会连接');
       return;
     }
 
-    const url = `${config.serverUrl}?token=${encodeURIComponent(config.agentToken)}`;
+    const url = `${conn.serverUrl}?token=${encodeURIComponent(conn.agentToken)}`;
     let ws;
     try {
       ws = new WebSocket(url);
@@ -497,7 +546,7 @@ export function apply(ctx, config) {
 
     ws.addEventListener('open', () => {
       attempts = 0;
-      log('已连接', config.serverUrl);
+      log('已连接', conn.serverUrl, `（配置来源：${conn.source}）`);
       send({ type: 'hello', version: VERSION });
       if (pingTimer) clearInterval(pingTimer);
       pingTimer = setInterval(() => send({ type: 'ping' }), 30000);

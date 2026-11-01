@@ -20,6 +20,7 @@ hopzz chat relay —— 手机网页 ⇄ 家电脑上的 DSH 插件
 from __future__ import annotations
 
 import asyncio
+import base64
 import hashlib
 import hmac
 import json
@@ -49,11 +50,12 @@ COOKIE_MAX_AGE = 30 * 24 * 3600
 MAX_ATTEMPTS = int(os.getenv("MAX_ATTEMPTS", "5"))
 LOCK_SECONDS = int(os.getenv("LOCK_SECONDS", "900"))
 MIN_PASSWORD_LEN = 8
+SETUP_MIN_LEN = 8
 REQUEST_TIMEOUT = 330          # 秒：等插件回答的上限
 REQUEST_GC_SECONDS = 600       # 秒：太久没回应的请求清掉
 
-if not AGENT_TOKEN or not COOKIE_SECRET or not INITIAL_PASSWORD:
-    raise RuntimeError("必须设置 CHAT_PASSWORD / AGENT_TOKEN / COOKIE_SECRET")
+if not AGENT_TOKEN or not COOKIE_SECRET:
+    raise RuntimeError("必须设置 AGENT_TOKEN / COOKIE_SECRET")
 
 # ---------------------------------------------------------------- 数据库（只存鉴权状态）
 SCHEMA = """
@@ -149,11 +151,16 @@ def init_db() -> None:
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
     with closing(db()) as conn:
         conn.executescript(SCHEMA)
-        if not meta_get(conn, "pwd_hash"):
+        if not meta_get(conn, "pwd_hash") and INITIAL_PASSWORD:
+            # 兼容：环境变量里带了初始密码就直接用；否则走「首次进入设置密码」
             meta_set(conn, "pwd_hash", hash_password(INITIAL_PASSWORD))
             meta_set(conn, "pwd_ver", "1")
             print("[relay] 已从环境变量初始化登录密码", flush=True)
         conn.commit()
+
+
+def password_is_set() -> bool:
+    return bool(get_stored_hash())
 
 
 # ---------------------------------------------------------------- cookie
@@ -267,6 +274,73 @@ def me(request: Request) -> Any:
     if verify_session(request.cookies.get(COOKIE_NAME)):
         return {"ok": True}
     return JSONResponse({"ok": False}, status_code=401)
+
+
+@app.get("/api/setup-state")
+def setup_state() -> Any:
+    """首次进入：数据库里还没有密码时，前端要显示「设置密码」页。"""
+    return {"ok": True, "needsSetup": not password_is_set()}
+
+
+@app.post("/api/setup")
+async def setup(request: Request) -> Any:
+    """首次设置密码。已经设过就直接拒绝。"""
+    if password_is_set():
+        return JSONResponse({"ok": False, "error": "密码已设置"}, status_code=409)
+
+    try:
+        body = await request.json()
+    except Exception:
+        return JSONResponse({"ok": False, "error": "请求格式错误"}, status_code=400)
+
+    password = str(body.get("password", ""))
+    if len(password) < SETUP_MIN_LEN:
+        return JSONResponse(
+            {"ok": False, "error": f"密码至少 {SETUP_MIN_LEN} 位"}, status_code=400
+        )
+
+    with closing(db()) as conn:
+        # 再查一次，避免并发重复设置
+        if meta_get(conn, "pwd_hash"):
+            return JSONResponse({"ok": False, "error": "密码已设置"}, status_code=409)
+        meta_set(conn, "pwd_hash", hash_password(password))
+        meta_set(conn, "pwd_ver", str(int(meta_get(conn, "pwd_ver", "1") or "1") + 1))
+        meta_set(conn, "fail_count", "0")
+        meta_set(conn, "locked_until", "0")
+        conn.commit()
+    print("[relay] 首次密码已设置", flush=True)
+
+    resp = JSONResponse({"ok": True})
+    set_login_cookie(resp)
+    return resp
+
+
+def build_connect_string(server_url: str, token: str) -> str:
+    """把服务器地址 + 令牌打包成一大串，插件里直接粘这串就能连。"""
+    payload = json.dumps(
+        {"v": 1, "url": server_url, "token": token}, separators=(",", ":")
+    ).encode()
+    return "whale1." + base64.urlsafe_b64encode(payload).decode().rstrip("=")
+
+
+@app.get("/api/conninfo")
+def conninfo(request: Request) -> Any:
+    """给登录用户看的连接参数（填到 DSH 插件设置里）。"""
+    if not verify_session(request.cookies.get(COOKIE_NAME)):
+        return JSONResponse({"ok": False}, status_code=401)
+
+    host = request.headers.get("host") or "ai.hopzz.top"
+    proto = (request.headers.get("x-forwarded-proto") or "https").split(",")[0].strip()
+    ws_scheme = "wss" if proto == "https" else "ws"
+    server_url = f"{ws_scheme}://{host}/agent-ws"
+
+    return {
+        "ok": True,
+        "host": host,
+        "serverUrl": server_url,
+        "agentToken": AGENT_TOKEN,
+        "connectString": build_connect_string(server_url, AGENT_TOKEN),
+    }
 
 
 @app.post("/api/login")

@@ -35,6 +35,13 @@
   var loginBtn = document.getElementById('loginBtn');
   var loginError = document.getElementById('loginError');
 
+  var setupView = document.getElementById('setupView');
+  var setupForm = document.getElementById('setupForm');
+  var setupPasswordInput = document.getElementById('setupPassword');
+  var setupConfirmInput = document.getElementById('setupConfirm');
+  var setupError = document.getElementById('setupError');
+  var setupBtn = document.getElementById('setupBtn');
+
   var chatView = document.getElementById('chatView');
   var sidebar = document.getElementById('sidebar');
   var sidebarBackdrop = document.getElementById('sidebarBackdrop');
@@ -88,6 +95,17 @@
   var passwordSuccess = document.getElementById('passwordSuccess');
   var passwordSubmitBtn = document.getElementById('passwordSubmit');
   var passwordCancelBtn = document.getElementById('passwordCancel');
+
+  var connLoading = document.getElementById('connLoading');
+  var connItems = document.getElementById('connItems');
+  var connError = document.getElementById('connError');
+  var connServer = document.getElementById('connServer');
+  var connServerCopy = document.getElementById('connServerCopy');
+  var connToken = document.getElementById('connToken');
+  var connTokenCopy = document.getElementById('connTokenCopy');
+  var connTokenToggle = document.getElementById('connTokenToggle');
+  var connString = document.getElementById('connString');
+  var connStringCopy = document.getElementById('connStringCopy');
 
   var mobileMedia = window.matchMedia ? window.matchMedia(MOBILE_QUERY) : null;
 
@@ -149,15 +167,21 @@
     agentOnline: null,
     pollTimer: 0,
 
-    /* 登录 / 改密码 */
+    /* 登录 / 首启设置 / 改密码 */
     loginBusy: false,
     loginLocked: false,
     loginLockTimer: 0,
+    setupBusy: false,
     pwdBusy: false,
     pwdLocked: false,
     pwdLockTimer: 0,
     pwdSuccess: false,
-    pwdCloseTimer: 0
+    pwdCloseTimer: 0,
+
+    /* 连接参数 */
+    connInfo: null,
+    connSeq: 0,
+    tokenVisible: false
   };
 
   /* 请求 id -> { resolve, reject, timer } */
@@ -299,6 +323,7 @@
   function setView(next) {
     state.view = next;
     loginView.hidden = next !== 'login';
+    setupView.hidden = next !== 'setup';
     chatView.hidden = next !== 'chat';
     if (next !== 'chat') {
       closeDrawer();
@@ -449,6 +474,99 @@
   function expireSession() {
     showLogin();
     setLoginError('登录已过期，请重新输入密码', false);
+  }
+
+  /* ================= 首次设置密码 ================= */
+  function setSetupError(message) {
+    if (!message) {
+      setupError.hidden = true;
+      setupError.textContent = '';
+      return;
+    }
+    setupError.textContent = message;
+    setupError.hidden = false;
+  }
+
+  function setSetupBusy(busy) {
+    state.setupBusy = busy;
+    setupBtn.disabled = busy;
+    setupBtn.textContent = busy ? '设置中…' : '设置并进入';
+  }
+
+  function showSetup(message) {
+    closeSocket();
+    resetAppUi();
+    setView('setup');
+    clearToasts();
+    setSetupError(message || '');
+    setupPasswordInput.value = '';
+    setupConfirmInput.value = '';
+    state.setupBusy = false;
+    setupBtn.disabled = false;
+    setupBtn.textContent = '设置并进入';
+
+    window.setTimeout(function () {
+      if (state.view === 'setup') setupPasswordInput.focus();
+    }, 80);
+  }
+
+  async function onSetupSubmit(event) {
+    event.preventDefault();
+    if (state.setupBusy) return;
+
+    var password = setupPasswordInput.value;
+    var confirm = setupConfirmInput.value;
+
+    if (password.length < 8) {
+      setSetupError('密码至少 8 位');
+      setupPasswordInput.focus();
+      return;
+    }
+    if (password !== confirm) {
+      setSetupError('两次输入的密码不一致');
+      setupConfirmInput.focus();
+      return;
+    }
+
+    setSetupBusy(true);
+    setSetupError('');
+
+    try {
+      var res = await fetch('/api/setup', {
+        method: 'POST',
+        credentials: 'same-origin',
+        cache: 'no-store',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
+        body: JSON.stringify({ password: password })
+      });
+      var data = await readJson(res);
+
+      if (res.ok) {
+        setSetupBusy(false);
+        enterApp();
+        return;
+      }
+
+      setSetupBusy(false);
+      if (res.status === 409) {
+        setSetupError('密码已设置，请登录');
+        window.setTimeout(function () {
+          if (state.view === 'setup') showLogin();
+        }, 1600);
+        return;
+      }
+      if (res.status === 400) {
+        setSetupError(data && typeof data.error === 'string' && data.error ? data.error : '密码至少 8 位');
+        return;
+      }
+      setSetupError(data && typeof data.error === 'string' && data.error ? data.error : '设置失败，请稍后重试');
+    } catch (err) {
+      setSetupBusy(false);
+      setSetupError('网络错误，请检查连接');
+    }
   }
 
   /* ================= 数据归一化 ================= */
@@ -2098,6 +2216,157 @@
     setPasswordSubmitBusy(false);
   }
 
+  /* ================= 设置：连接参数 ================= */
+  function maskToken(token) {
+    var value = typeof token === 'string' ? token : '';
+    if (!value) return '';
+    if (value.length <= 8) return '••••••';
+    return value.slice(0, 4) + '••••••' + value.slice(-3);
+  }
+
+  function legacyCopy(text) {
+    return new Promise(function (resolve, reject) {
+      var area = document.createElement('textarea');
+      area.value = text;
+      area.setAttribute('readonly', '');
+      area.style.position = 'fixed';
+      area.style.top = '-1000px';
+      area.style.left = '-1000px';
+      area.style.opacity = '0';
+      document.body.appendChild(area);
+
+      var copied = false;
+      try {
+        area.select();
+        area.setSelectionRange(0, area.value.length);
+        copied = document.execCommand && document.execCommand('copy');
+      } catch (err) {
+        copied = false;
+      }
+      document.body.removeChild(area);
+
+      if (copied) resolve();
+      else reject(new Error('copy failed'));
+    });
+  }
+
+  function copyText(text) {
+    return new Promise(function (resolve, reject) {
+      var value = typeof text === 'string' ? text : '';
+      if (!value) {
+        reject(new Error('empty'));
+        return;
+      }
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(value).then(resolve).catch(function () {
+          legacyCopy(value).then(resolve, reject);
+        });
+        return;
+      }
+      legacyCopy(value).then(resolve, reject);
+    });
+  }
+
+  function copyWithFeedback(button, value) {
+    if (!button || button.disabled) return;
+    copyText(value).then(function () {
+      button.textContent = '已复制 ✓';
+      button.classList.add('is-copied');
+      if (button._copyTimer) window.clearTimeout(button._copyTimer);
+      button._copyTimer = window.setTimeout(function () {
+        button._copyTimer = 0;
+        button.textContent = '复制';
+        button.classList.remove('is-copied');
+      }, 1500);
+    }).catch(function () {
+      showToast('复制失败，请手动选择复制');
+    });
+  }
+
+  function resetConnUi() {
+    state.connInfo = null;
+    state.connSeq += 1;
+    state.tokenVisible = false;
+
+    connLoading.hidden = false;
+    connItems.hidden = true;
+    connError.hidden = true;
+    connError.textContent = '';
+    connServer.textContent = '';
+    connToken.textContent = '';
+    connString.textContent = '';
+    connTokenToggle.textContent = '显示';
+    connTokenToggle.setAttribute('aria-pressed', 'false');
+    connTokenToggle.hidden = false;
+    connServerCopy.disabled = true;
+    connTokenCopy.disabled = true;
+    connStringCopy.disabled = true;
+
+    [connServerCopy, connTokenCopy, connStringCopy].forEach(function (button) {
+      if (button._copyTimer) {
+        window.clearTimeout(button._copyTimer);
+        button._copyTimer = 0;
+      }
+      button.textContent = '复制';
+      button.classList.remove('is-copied');
+    });
+  }
+
+  function renderConnInfo() {
+    var info = state.connInfo;
+    if (!info) return;
+
+    var token = info.agentToken || '';
+    connLoading.hidden = true;
+    connItems.hidden = false;
+    connError.hidden = true;
+
+    connServer.textContent = info.serverUrl || '';
+    connString.textContent = info.connectString || '';
+    connToken.textContent = state.tokenVisible ? token : maskToken(token);
+    connTokenToggle.textContent = state.tokenVisible ? '隐藏' : '显示';
+    connTokenToggle.setAttribute('aria-pressed', state.tokenVisible ? 'true' : 'false');
+    connTokenToggle.hidden = !token;
+
+    connServerCopy.disabled = !info.serverUrl;
+    connTokenCopy.disabled = !token;
+    connStringCopy.disabled = !info.connectString;
+  }
+
+  async function loadConnInfo() {
+    resetConnUi();
+    var seq = state.connSeq;
+
+    try {
+      var res = await apiJson('/api/conninfo');
+      if (seq !== state.connSeq) return;
+      if (res.status === 401) {
+        expireSession();
+        return;
+      }
+      var data = await readJson(res);
+      if (seq !== state.connSeq) return;
+      if (!res.ok || !data || data.ok !== true) {
+        throw new Error(data && typeof data.error === 'string' && data.error
+          ? data.error
+          : '读取连接参数失败');
+      }
+
+      state.connInfo = {
+        serverUrl: typeof data.serverUrl === 'string' ? data.serverUrl : '',
+        agentToken: typeof data.agentToken === 'string' ? data.agentToken : '',
+        connectString: typeof data.connectString === 'string' ? data.connectString : ''
+      };
+      renderConnInfo();
+    } catch (err) {
+      if (seq !== state.connSeq) return;
+      connLoading.hidden = true;
+      connItems.hidden = true;
+      connError.textContent = err && err.message ? err.message : '读取连接参数失败';
+      connError.hidden = false;
+    }
+  }
+
   function openSettings() {
     if (state.view !== 'chat') return;
     closeDrawer();
@@ -2108,13 +2377,11 @@
       state.pwdCloseTimer = 0;
     }
     resetPasswordForm();
+    loadConnInfo();
     settingsModal.hidden = false;
     window.requestAnimationFrame(function () {
       settingsModal.classList.add('is-open');
     });
-    window.setTimeout(function () {
-      if (!settingsModal.hidden) oldPasswordInput.focus();
-    }, 80);
   }
 
   function closeSettings() {
@@ -2660,6 +2927,7 @@
     state.typingSessions = {};
     state.pendingSends = {};
     state.flashSessionId = '';
+    state.setupBusy = false;
     state.unsupported = { setModel: false, setPreset: false, setBundle: false };
     state.modelBusy = false;
     state.modelBusyKey = '';
@@ -2691,6 +2959,7 @@
     closeInfoImmediate();
     closeCreateModalImmediate();
     closeSettingsImmediate();
+    resetConnUi();
 
     messagesInner.textContent = '';
     messagesInner.appendChild(emptyHint);
@@ -2766,6 +3035,7 @@
   /* ================= 事件绑定 ================= */
   function bindEvents() {
     loginForm.addEventListener('submit', onLoginSubmit);
+    setupForm.addEventListener('submit', onSetupSubmit);
     themeBtn.addEventListener('click', toggleTheme);
     logoutBtn.addEventListener('click', onLogoutClick);
     infoBtn.addEventListener('click', openInfo);
@@ -2783,6 +3053,20 @@
     settingsBackdrop.addEventListener('click', closeSettings);
     passwordCancelBtn.addEventListener('click', closeSettings);
     passwordForm.addEventListener('submit', onPasswordSubmit);
+
+    connServerCopy.addEventListener('click', function () {
+      if (state.connInfo) copyWithFeedback(connServerCopy, state.connInfo.serverUrl);
+    });
+    connTokenCopy.addEventListener('click', function () {
+      if (state.connInfo) copyWithFeedback(connTokenCopy, state.connInfo.agentToken);
+    });
+    connStringCopy.addEventListener('click', function () {
+      if (state.connInfo) copyWithFeedback(connStringCopy, state.connInfo.connectString);
+    });
+    connTokenToggle.addEventListener('click', function () {
+      state.tokenVisible = !state.tokenVisible;
+      renderConnInfo();
+    });
 
     sendBtn.addEventListener('click', sendCurrentMessage);
     inputEl.addEventListener('input', function () {
@@ -2878,6 +3162,27 @@
     updateChatEmptyState();
     updateComposerState();
     startPolling();
+
+    var needsSetup = false;
+    try {
+      var setupRes = await fetch('/api/setup-state', {
+        method: 'GET',
+        credentials: 'same-origin',
+        cache: 'no-store',
+        headers: { 'Accept': 'application/json' }
+      });
+      if (setupRes.ok) {
+        var setupData = await readJson(setupRes);
+        if (setupData && setupData.needsSetup === true) needsSetup = true;
+      }
+    } catch (err) {
+      /* 探测失败时回落到正常登录流程 */
+    }
+
+    if (needsSetup) {
+      showSetup();
+      return;
+    }
 
     try {
       var res = await apiJson('/api/me');
