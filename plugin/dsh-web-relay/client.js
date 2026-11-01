@@ -257,7 +257,7 @@ window.__ModuleLoader__.load({
               h('textarea', {
                 style: styles.textarea,
                 value: connectString,
-                placeholder: 'whale1.eyJ2IjoxLCJ1cmwiOiJ3c3M6Ly8uLi4iLCJ0b2tlbiI6Ii4uLiJ9',
+                placeholder: '',
                 spellCheck: false,
                 onChange: (e) => setConnectString(e.target.value),
               })
@@ -464,15 +464,15 @@ window.__ModuleLoader__.load({
         h('h3', { style: styles.title }, '常规设置'),
 
         h('p', { style: styles.hint }, '部署用的服务器信息（填了 IP + root 密码，一键部署就不用依赖本机 SSH 配置）'),
-        field('服务器地址', host, setHost, '64.83.20.24'),
-        field('端口', port, setPort, '22'),
-        field('用户名', user, setUser, 'root'),
-        field('密码', password, setPassword, st.hasDeployPassword ? '已保存，留空则不修改' : 'root 密码', 'password'),
-        field('域名', domain, setDomain, 'ai.hopzz.top（要解析到这台服务器）'),
+        field('服务器地址', host, setHost, ''),
+        field('端口', port, setPort, ''),
+        field('用户名', user, setUser, ''),
+        field('密码', password, setPassword, '', 'password'),
+        field('域名', domain, setDomain, ''),
 
         h('p', { style: { ...styles.hint, marginTop: '6px' } }, '高级：本机已配好 SSH 密钥的话，也可以走配置文件'),
-        field('SSH 配置', sshConfig, setSshConfig, 'D:\\DSH\\work\\.ssh\\config'),
-        field('SSH 主机', sshTarget, setSshTarget, 'vps'),
+        field('SSH 配置', sshConfig, setSshConfig, ''),
+        field('SSH 主机', sshTarget, setSshTarget, ''),
 
         h(
           'div',
