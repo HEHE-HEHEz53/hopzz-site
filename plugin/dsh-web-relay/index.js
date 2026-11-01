@@ -16,7 +16,7 @@
  */
 
 // 不再依赖 @deepseek-ai/schemastery：插件是软链接安装，Node 从真实路径解析，找不到 DSH 内部包。
-import { readFileSync, writeFileSync, existsSync, mkdirSync, rmSync } from 'node:fs';
+import { readFileSync, writeFileSync, existsSync, mkdirSync, rmSync, chmodSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -28,7 +28,7 @@ export const name = 'web-relay';
 // 否则插件启动太早，ctx.get('webServer') 拿到 undefined，设置面板接口就全 404。
 export const inject = ['webServer'];
 
-const VERSION = '2.7.0';
+const VERSION = '2.8.0';
 const TAG = `[web-relay@${VERSION}]`;
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -57,9 +57,9 @@ export function apply(ctx, config = {}) {
     serverUrl: '',
     agentToken: '',
     maxReconnectMs: 0,
-    sshConfigPath: 'D:\\DSH\\work\\.ssh\\config',
+    sshConfigPath: '',
     sshTarget: '',
-    repoPath: 'D:\\DSH\\work',
+    repoPath: '',
     // 一键部署用：填了这些就用密码登录，不依赖本机 SSH 配置
     deployHost: '',
     deployPort: 22,
@@ -67,8 +67,8 @@ export function apply(ctx, config = {}) {
     deployPassword: '',
     deployDomain: '',
     sourceUrl: 'https://hopzz.top/dl/chat-src.tar.gz',
-    plinkPath: 'D:\\app\\putty\\plink.exe',
-    pscpPath: 'D:\\app\\putty\\pscp.exe',
+    plinkPath: 'plink.exe',
+    pscpPath: 'pscp.exe',
   };
 
   function loadSettings() {
@@ -178,7 +178,7 @@ export function apply(ctx, config = {}) {
 
   /** 用 plink 的报错信息拿到主机指纹（第一次连接时用） */
   async function ensureHostKey(host, port, user) {
-    const plink = runtimeSettings.plinkPath || 'D:\\app\\putty\\plink.exe';
+    const plink = runtimeSettings.plinkPath || 'plink.exe';
     const probe = await runCommand(
       plink,
       ['-batch', '-P', String(port), '-l', user || 'root', '-pw', 'precheck', host, 'echo ok'],
@@ -192,9 +192,17 @@ export function apply(ctx, config = {}) {
   function makeAskpass(password) {
     const dir = join(tmpdir(), 'hopzz-ask-' + Date.now());
     mkdirSync(dir, { recursive: true });
-    const file = join(dir, 'askpass.cmd');
-    const safe = String(password).replace(/([&<>|^%])/g, '^$1');
-    writeFileSync(file, '@echo off\r\necho ' + safe + '\r\n', 'utf8');
+    const isWin = process.platform === 'win32';
+    const file = join(dir, isWin ? 'askpass.cmd' : 'askpass.sh');
+    const raw = String(password);
+    if (isWin) {
+      const safe = raw.replace(/([&<>|^%])/g, '^$1');
+      writeFileSync(file, '@echo off\r\necho ' + safe + '\r\n', 'utf8');
+    } else {
+      const safe = raw.replace(/'/g, "'" + "\\\\" + "''");
+      writeFileSync(file, "#!/bin/sh\nprintf '%s\\n' " + "'" + safe + "'" + "\n", 'utf8');
+      try { chmodSync(file, 0o700); } catch {}
+    }
     return { file, dir };
   }
 
@@ -207,14 +215,10 @@ export function apply(ctx, config = {}) {
   }
 
   function resolveBin(name) {
-    // Windows 自带 OpenSSH 路径
-    const candidates = [
-      'C:\\Windows\\System32\\OpenSSH\\' + name + '.exe',
-      name,
-    ];
-    for (const p of candidates) {
-      if (p === name) return name; // 交给 PATH
-      if (existsSync(p)) return p;
+    if (process.platform === 'win32') {
+      const sys = 'C:\\Windows\\System32\\OpenSSH\\' + name + '.exe';
+      if (existsSync(sys)) return sys;
+      return name + '.exe';
     }
     return name;
   }
@@ -283,6 +287,7 @@ export function apply(ctx, config = {}) {
       const remote = `${user}@${host}`;
       const plink = runtimeSettings.plinkPath || 'plink.exe';
       const pscp = runtimeSettings.pscpPath || 'pscp.exe';
+      // PuTTY 只有显式填了完整路径才用；否则一律用系统自带 OpenSSH（Win/Linux/macOS 都有）
       const hasPutty = existsSync(plink) && existsSync(pscp);
 
       logText += `方式: 密码登录 ${remote}:${port}（${hasPutty ? 'PuTTY' : 'Windows 自带 OpenSSH'}）\n\n`;
@@ -344,7 +349,7 @@ export function apply(ctx, config = {}) {
       };
     }
     // ---------- SSH 配置模式（本机已配好密钥）----------
-    const cfgPath = runtimeSettings.sshConfigPath || 'D:\\DSH\\work\\.ssh\\config';
+    const cfgPath = runtimeSettings.sshConfigPath || '';
     const target = runtimeSettings.sshTarget || 'vps';
     if (!existsSync(cfgPath)) {
       return {
