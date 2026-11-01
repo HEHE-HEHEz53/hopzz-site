@@ -1,0 +1,28 @@
+# 密钥绝对不能进仓库
+.ssh/
+*.pem
+*.key
+
+# 生成物 / 临时文件
+art/*.jpg
+art/*.png
+art/*.ico
+art/palette.json
+*.log
+_backup/
+backup/
+
+# 依赖
+node_modules/
+venv/
+__pycache__/
+*.pyc
+
+# 编辑器
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# 本地插件配置里含令牌，不入库（示例见 cordis.patch.yml.example）
+plugin/dsh-web-relay/cordis.patch.yml

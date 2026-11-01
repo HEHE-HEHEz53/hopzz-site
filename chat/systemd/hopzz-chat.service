@@ -1,0 +1,31 @@
+[Unit]
+Description=Hopzz chat relay (phone web chat <-> DSH plugin)
+Documentation=https://chat.hopzz.top
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=www-data
+Group=www-data
+WorkingDirectory=/opt/hopzz-chat/server
+EnvironmentFile=/opt/hopzz-chat/.env
+ExecStart=/opt/hopzz-chat/venv/bin/uvicorn app:app --host 127.0.0.1 --port 8100 --workers 1 --proxy-headers --forwarded-allow-ips=127.0.0.1
+Restart=always
+RestartSec=3
+TimeoutStopSec=10
+
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=full
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+ReadWritePaths=/opt/hopzz-chat/data
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,32 @@
+[Unit]
+Description=Hopzz API (FastAPI) - personal site backend
+Documentation=https://hopzz.top/api/docs
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=www-data
+Group=www-data
+WorkingDirectory=/opt/hopzz-api
+EnvironmentFile=/opt/hopzz-api/.env
+ExecStart=/opt/hopzz-api/venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8000 --workers 2 --proxy-headers --forwarded-allow-ips=127.0.0.1
+Restart=always
+RestartSec=3
+TimeoutStopSec=10
+
+# ---- 基础加固：给这个服务尽量小的权限 ----
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=full
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+ReadWritePaths=/opt/hopzz-api/data
+
+[Install]
+WantedBy=multi-user.target

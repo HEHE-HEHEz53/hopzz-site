@@ -1,0 +1,48 @@
+{
+  "name": "@local/dsh-web-relay",
+  "version": "2.1.0",
+  "private": true,
+  "type": "module",
+  "description": "把 DSH 接到 hopzz.top 的手机聊天网页（插件主动外连，无需公网 IP）",
+  "exports": {
+    ".": "./index.js",
+    "./locale/*.json": "./locale/*.json",
+    "./icon": "./icon.svg"
+  },
+  "files": [
+    "index.js",
+    "cordis.patch.yml",
+    "locale/*.json",
+    "icon.svg"
+  ],
+  "dependencies": {},
+  "peerDependencies": {
+    "@deepseek-ai/cordis": ">=4.0.1",
+    "@deepseek-ai/dsh-agent": ">=0.1.0-rc.6",
+    "@deepseek-ai/dsh-llm": ">=0.1.0-rc.6",
+    "@deepseek-ai/dsh-session": ">=0.1.0-rc.6",
+    "@deepseek-ai/schemastery": ">=3.18.1"
+  },
+  "peerDependenciesMeta": {
+    "@deepseek-ai/cordis": {
+      "optional": false
+    },
+    "@deepseek-ai/dsh-agent": {
+      "optional": false
+    },
+    "@deepseek-ai/dsh-llm": {
+      "optional": false
+    },
+    "@deepseek-ai/dsh-session": {
+      "optional": false
+    },
+    "@deepseek-ai/schemastery": {
+      "optional": false
+    }
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  }
+}

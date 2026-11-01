@@ -1,0 +1,9 @@
+- insert:
+    - id: web-relay
+      name: '@local/dsh-web-relay'
+      config:
+        serverUrl: 'wss://ai.hopzz.top/agent-ws'
+        agentToken: 'REPLACE_WITH_AGENT_TOKEN'
+        cwd: 'D:\DSH\work'
+        provider: ''
+        model: ''
