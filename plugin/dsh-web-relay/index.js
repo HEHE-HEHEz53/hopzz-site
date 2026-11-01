@@ -28,7 +28,7 @@ export const name = 'web-relay';
 // 否则插件启动太早，ctx.get('webServer') 拿到 undefined，设置面板接口就全 404。
 export const inject = ['webServer'];
 
-const VERSION = '2.9.1';
+const VERSION = '2.9.2';
 const TAG = `[web-relay@${VERSION}]`;
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -288,10 +288,11 @@ export function apply(ctx, config = {}) {
       // 优先用插件自带的 PuTTY（Windows 系统 ssh 不支持 SSH_ASKPASS，密码登录只能用 plink）
       const bundledPlink = join(HERE, 'bin', 'win32', 'plink.exe');
       const bundledPscp = join(HERE, 'bin', 'win32', 'pscp.exe');
-      const plink = existsSync(bundledPlink) ? bundledPlink : (runtimeSettings.plinkPath || 'plink.exe');
-      const pscp = existsSync(bundledPscp) ? bundledPscp : (runtimeSettings.pscpPath || 'pscp.exe');
+      const isWinPlat = process.platform === 'win32';
+      const plink = isWinPlat && existsSync(bundledPlink) ? bundledPlink : (runtimeSettings.plinkPath || 'plink');
+      const pscp = isWinPlat && existsSync(bundledPscp) ? bundledPscp : (runtimeSettings.pscpPath || 'pscp');
       // PuTTY 只有显式填了完整路径才用；否则一律用系统自带 OpenSSH（Win/Linux/macOS 都有）
-      const hasPutty = existsSync(plink) && existsSync(pscp);
+      const hasPutty = isWinPlat && existsSync(plink) && existsSync(pscp);
 
       logText += `方式: 密码登录 ${remote}:${port}（${hasPutty ? 'PuTTY' : 'Windows 自带 OpenSSH'}）\n\n`;
 
