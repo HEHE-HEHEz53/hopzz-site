@@ -28,7 +28,7 @@ export const name = 'web-relay';
 // 否则插件启动太早，ctx.get('webServer') 拿到 undefined，设置面板接口就全 404。
 export const inject = ['webServer'];
 
-const VERSION = '2.9.8';
+const VERSION = '2.9.9';
 const TAG = `[web-relay@${VERSION}]`;
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -427,38 +427,62 @@ export function apply(ctx, config = {}) {
     };
   }
   // ------------------------------------------------------------ 测试连接
-  function testConnection() {
+  /** 测试连接：分步报告，便于定位是地址、网络还是令牌的问题 */
+  async function testConnection() {
     const conn = effectiveConnection();
     if (!conn.agentToken) {
-      return Promise.resolve({ ok: false, message: '还没有配置令牌' });
+      return { ok: false, message: '还没有配置令牌' };
     }
-    return new Promise((resolve) => {
+    const url = conn.serverUrl;
+    const httpBase = url.replace(/^ws/, 'http').replace(/\/agent-ws.*$/, '');
+    const detail = ['地址: ' + url, '令牌: ' + conn.agentToken.slice(0, 8) + '…（共 ' + conn.agentToken.length + ' 位）'];
+
+    try {
+      const res = await fetch(httpBase + '/api/setup-state', { signal: AbortSignal.timeout(8000) });
+      detail.push('HTTP 探测: ' + res.status + (res.ok ? ' 可达' : ' 异常'));
+      if (!res.ok) {
+        return { ok: false, message: '服务器返回 ' + res.status + '，地址可能不对', log: detail.join('\n') };
+      }
+    } catch (err) {
+      detail.push('HTTP 探测失败: ' + String(err && err.message ? err.message : err));
+      return { ok: false, message: '连不上服务器的 HTTP 端口（地址/端口错，或服务没跑）', log: detail.join('\n') };
+    }
+
+    return await new Promise((resolve) => {
       let done = false;
       let probe = null;
       const finish = (ok, message) => {
         if (done) return;
         done = true;
         try {
-          probe?.close();
-        } catch {
+          if (probe) probe.close();
+        } catch (e) {
           /* 忽略 */
         }
-        resolve({ ok, message });
+        resolve({ ok: ok, message: message, log: detail.join('\n') });
       };
-      const timer = setTimeout(() => finish(false, '连接超时（8 秒）'), 8000);
+      const timer = setTimeout(() => finish(false, 'WebSocket 握手超时（8 秒）'), 8000);
       try {
-        probe = new WebSocket(`${conn.serverUrl}?token=${encodeURIComponent(conn.agentToken)}`);
+        probe = new WebSocket(url + '?token=' + encodeURIComponent(conn.agentToken));
       } catch (err) {
         clearTimeout(timer);
-        return finish(false, String(err?.message ?? err));
+        detail.push('构造 WebSocket 失败: ' + String(err && err.message ? err.message : err));
+        return finish(false, '地址格式不对（要以 ws:// 或 wss:// 开头）');
       }
       probe.addEventListener('open', () => {
         clearTimeout(timer);
+        detail.push('WebSocket: 握手成功');
         finish(true, '连接正常');
       });
       probe.addEventListener('error', () => {
         clearTimeout(timer);
-        finish(false, '连接失败（地址或令牌不对）');
+        detail.push('WebSocket: error（服务器拒绝、路径不对，或 TLS 不符）');
+        finish(false, 'WebSocket 连不上：看下面的明细');
+      });
+      probe.addEventListener('close', (ev) => {
+        clearTimeout(timer);
+        detail.push('WebSocket 关闭: code=' + ev.code + ' reason=' + (ev.reason || '(空)'));
+        finish(false, '服务器主动断开（多半是令牌不对）');
       });
     });
   }
