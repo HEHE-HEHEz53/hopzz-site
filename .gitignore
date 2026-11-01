@@ -26,3 +26,7 @@ Thumbs.db
 
 # 本地插件配置里含令牌，不入库（示例见 cordis.patch.yml.example）
 plugin/dsh-web-relay/cordis.patch.yml
+# 插件运行时生成的文件（settings.json 里含连接字符串/令牌，绝不入库）
+plugin/dsh-web-relay/settings.json
+plugin/dsh-web-relay/boot.json
+plugin/dsh-web-relay/*.local.json
