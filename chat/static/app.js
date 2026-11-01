@@ -10,8 +10,7 @@
   /* ================= 常量 ================= */
   var STORAGE_THEME = 'chat.theme';
   var STORAGE_SESSION = 'lastSessionId';
-  var BOTTOM_THRESHOLD = 80;
-  var MAX_RETRY_DELAY = 10000;
+  var BOTTOM_THRESHOLD = 80;  var MAX_RETRY_DELAY = 10000;
   var MAX_INPUT_LINES = 5;
   var MOBILE_QUERY = '(max-width: 767px)';
   var SNAPSHOT_TIMEOUT = 15000;
@@ -25,7 +24,6 @@
   var PWD_SUCCESS_CLOSE_MS = 1200;
   var BUNDLE_CONFIRM_MS = 4000;
   var BUNDLE_FEEDBACK_MS = 9000;
-  var SVG_NS = 'http://www.w3.org/2000/svg';
 
   /* ================= DOM ================= */
   var root = document.documentElement;
@@ -235,23 +233,6 @@
     return document.contains(node);
   }
 
-  function createWhaleIcon() {
-    var svg = document.createElementNS(SVG_NS, 'svg');
-    svg.setAttribute('class', 'whale-icon');
-    svg.setAttribute('viewBox', '0 0 24 24');
-    svg.setAttribute('aria-hidden', 'true');
-    svg.setAttribute('focusable', 'false');
-    var use = document.createElementNS(SVG_NS, 'use');
-    use.setAttribute('href', '#whale-icon');
-    try {
-      use.setAttributeNS('http://www.w3.org/1999/xlink', 'xlink:href', '#whale-icon');
-    } catch (err) {
-      /* 老浏览器忽略 */
-    }
-    svg.appendChild(use);
-    return svg;
-  }
-
   /* ================= Toast ================= */
   function showToast(message) {
     var text = typeof message === 'string' ? message : String(message || '');
@@ -296,7 +277,7 @@
     root.setAttribute('data-theme', state.theme);
 
     if (metaTheme) {
-      metaTheme.setAttribute('content', state.theme === 'light' ? '#fff7fb' : '#171426');
+      metaTheme.setAttribute('content', state.theme === 'light' ? '#f5fefe' : '#0a2e58');
     }
     if (themeBtn) {
       var label = state.theme === 'light' ? '切换到深色模式' : '切换到浅色模式';
@@ -1086,7 +1067,12 @@
     var avatar = document.createElement('div');
     avatar.className = 'avatar';
     avatar.setAttribute('aria-hidden', 'true');
-    avatar.appendChild(createWhaleIcon());
+    var img = document.createElement('img');
+    img.className = 'avatar-img';
+    img.setAttribute('src', 'avatar.jpg');
+    img.setAttribute('alt', '');
+    img.setAttribute('draggable', 'false');
+    avatar.appendChild(img);
     return avatar;
   }
 
