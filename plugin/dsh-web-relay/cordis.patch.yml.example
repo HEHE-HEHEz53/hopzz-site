@@ -1,0 +1,10 @@
+- insert:
+    - id: web-relay
+      name: '@local/dsh-web-relay'
+      config:
+        # 方式一（推荐）：把网页「设置 → 连接参数」里的那一大串粘到这里
+        connectString: ''
+        # 方式二：分别填地址和令牌（connectString 为空时才用这两个）
+        serverUrl: 'wss://ai.hopzz.top/agent-ws'
+        agentToken: 'REPLACE_WITH_AGENT_TOKEN'
+        maxReconnectMs: 30000
