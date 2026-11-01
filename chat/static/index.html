@@ -10,7 +10,7 @@
   <link rel="icon" href="favicon.ico" sizes="any">
   <link rel="icon" href="icon.png" type="image/png" sizes="64x64">
   <link rel="apple-touch-icon" href="apple-touch-icon.png">
-  <link rel="stylesheet" href="app.css?v=9">
+  <link rel="stylesheet" href="app.css?v=10">
 </head>
 <body>
   <noscript><p class="noscript">请开启 JavaScript 后使用。</p></noscript>
@@ -215,152 +215,169 @@
     </div>
   </div>
 
-  <!-- ===== 设置（折叠分组：连接 / 插件管理 / 安全 / 关于） ===== -->
+  <!-- ===== 设置（三级菜单：根菜单 / 子菜单 / 面板） ===== -->
   <div class="modal-layer" id="settingsModal" hidden>
     <div class="modal-backdrop" id="settingsBackdrop"></div>
     <div class="modal-card settings-card" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
-      <div class="modal-head">
-        <h2 class="modal-title" id="settingsTitle">设置</h2>
+      <div class="modal-head settings-head">
+        <div class="settings-heading">
+          <button class="settings-back-btn" id="settingsBack" type="button" aria-label="返回上一级设置" hidden>‹ 返回</button>
+          <h2 class="modal-title" id="settingsTitle">设置</h2>
+        </div>
         <button class="icon-btn modal-close" id="settingsClose" type="button" aria-label="关闭设置">×</button>
       </div>
 
-      <div class="settings-accordion" id="settingsAccordion">
-        <section class="acc-item is-open" data-acc="conn">
-          <h3 class="acc-heading">
-            <button class="acc-head" id="accConnHead" type="button"
-                    aria-expanded="true" aria-controls="accConnPanel">
-              <span class="acc-title">连接</span>
-              <span class="acc-arrow" aria-hidden="true"></span>
-            </button>
-          </h3>
-          <div class="acc-panel" id="accConnPanel" aria-hidden="false">
-            <div class="acc-panel-inner">
-              <p class="settings-hint">在 DSH 插件「手机网页对话」的设置里，可以分别填前两项，也可以直接粘贴第三项连接字符串。</p>
-              <div class="conn-list" id="connList">
-                <p class="conn-loading" id="connLoading">正在读取连接参数…</p>
-                <div class="conn-items" id="connItems" hidden>
-                  <div class="conn-item">
-                    <div class="conn-item-head">
-                      <span class="conn-label">服务器地址</span>
-                      <span class="conn-actions">
-                        <button class="copy-btn" id="connServerCopy" type="button" disabled>复制</button>
-                      </span>
-                    </div>
-                    <div class="conn-value" id="connServer"></div>
+      <nav class="settings-breadcrumb" id="settingsBreadcrumb" aria-label="设置路径"></nav>
+
+      <div class="settings-content" id="settingsContent">
+        <div class="settings-menu-view" id="settingsMenuView"></div>
+
+        <div class="settings-panel-view" id="settingsPanelView" hidden>
+          <section class="settings-panel" data-panel="status" hidden>
+            <h3 class="settings-panel-title">连接状态</h3>
+            <div class="settings-status-list">
+              <div class="settings-status-row">
+                <span class="settings-status-label">页面连接</span>
+                <span class="settings-status-value" id="statusSocket">—</span>
+              </div>
+              <div class="settings-status-row">
+                <span class="settings-status-label">电脑端</span>
+                <span class="settings-status-value" id="statusAgent">—</span>
+              </div>
+              <div class="settings-status-row">
+                <span class="settings-status-label">电脑端插件</span>
+                <span class="settings-status-value" id="statusRelay">—</span>
+              </div>
+              <div class="settings-status-row">
+                <span class="settings-status-label">服务器</span>
+                <span class="settings-status-value" id="statusServer">—</span>
+              </div>
+            </div>
+            <p class="settings-hint">连接状态来自当前页面与电脑端插件的实时连接。</p>
+          </section>
+
+          <section class="settings-panel" data-panel="method" hidden>
+            <h3 class="settings-panel-title">连接方式</h3>
+            <p class="settings-hint">在 DSH 插件「手机网页对话」的设置里，可以分别填前两项，也可以直接粘贴第三项连接字符串。</p>
+            <div class="conn-list" id="connList">
+              <p class="conn-loading" id="connLoading">正在读取连接参数…</p>
+              <div class="conn-items" id="connItems" hidden>
+                <div class="conn-item">
+                  <div class="conn-item-head">
+                    <span class="conn-label">服务器地址</span>
+                    <span class="conn-actions">
+                      <button class="copy-btn" id="connServerCopy" type="button" disabled>复制</button>
+                    </span>
                   </div>
-                  <div class="conn-item">
-                    <div class="conn-item-head">
-                      <span class="conn-label">插件令牌</span>
-                      <span class="conn-actions">
-                        <button class="token-toggle" id="connTokenToggle" type="button" aria-pressed="false">显示</button>
-                        <button class="copy-btn" id="connTokenCopy" type="button" disabled>复制</button>
-                      </span>
-                    </div>
-                    <div class="conn-value" id="connToken"></div>
-                  </div>
-                  <div class="conn-item">
-                    <div class="conn-item-head">
-                      <span class="conn-label">连接字符串</span>
-                      <span class="conn-actions">
-                        <button class="copy-btn" id="connStringCopy" type="button" disabled>复制</button>
-                      </span>
-                    </div>
-                    <div class="conn-value" id="connString"></div>
-                  </div>
+                  <div class="conn-value" id="connServer"></div>
                 </div>
-                <p class="conn-error" id="connError" role="alert" hidden></p>
-              </div>
-              <p class="settings-note">改完密码后令牌不变，连接参数也不变。</p>
-            </div>
-          </div>
-        </section>
-
-        <section class="acc-item" data-acc="plugins">
-          <h3 class="acc-heading">
-            <button class="acc-head" id="accPluginsHead" type="button"
-                    aria-expanded="false" aria-controls="accPluginsPanel">
-              <span class="acc-title">插件管理</span>
-              <span class="acc-arrow" aria-hidden="true"></span>
-            </button>
-          </h3>
-          <div class="acc-panel" id="accPluginsPanel" aria-hidden="true">
-            <div class="acc-panel-inner">
-              <p class="settings-hint">这里装的是电脑上 DSH 的插件。安装需要联网，可能会花几十秒到几分钟。</p>
-              <div class="plugin-install">
-                <input class="text-input plugin-input" id="pluginSpecInput" type="text"
-                       placeholder="npm 包名 / git 地址 / 本地路径，例如 @tencent-connect/dsh-qqbot"
-                       autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
-                <button class="primary-btn modal-submit plugin-install-btn" id="pluginInstallBtn" type="button">安装</button>
-              </div>
-              <p class="plugin-result" id="pluginInstallResult" role="status" hidden></p>
-              <pre class="plugin-diagnostic" id="pluginDiagnostic" hidden></pre>
-              <div class="plugin-list" id="pluginList"></div>
-              <p class="plugin-empty" id="pluginEmpty" hidden>正在读取插件信息…</p>
-            </div>
-          </div>
-        </section>
-
-        <section class="acc-item" data-acc="security">
-          <h3 class="acc-heading">
-            <button class="acc-head" id="accSecurityHead" type="button"
-                    aria-expanded="false" aria-controls="accSecurityPanel">
-              <span class="acc-title">安全</span>
-              <span class="acc-arrow" aria-hidden="true"></span>
-            </button>
-          </h3>
-          <div class="acc-panel" id="accSecurityPanel" aria-hidden="true">
-            <div class="acc-panel-inner">
-              <form class="pwd-form" id="passwordForm" novalidate>
-                <label class="modal-field">
-                  <span class="modal-label">原密码</span>
-                  <input class="text-input" id="oldPassword" type="password" placeholder="原密码"
-                         autocomplete="current-password" required>
-                </label>
-                <label class="modal-field">
-                  <span class="modal-label">新密码</span>
-                  <input class="text-input" id="newPassword" type="password" placeholder="至少 8 位"
-                         autocomplete="new-password" required>
-                </label>
-                <label class="modal-field">
-                  <span class="modal-label">确认新密码</span>
-                  <input class="text-input" id="confirmPassword" type="password" placeholder="再输入一次"
-                         autocomplete="new-password" required>
-                </label>
-                <p class="form-error" id="passwordError" role="alert" hidden></p>
-                <p class="form-success" id="passwordSuccess" role="status" hidden>密码已修改</p>
-                <div class="modal-actions">
-                  <button class="ghost-btn" id="passwordCancel" type="button">取消</button>
-                  <button class="primary-btn modal-submit" id="passwordSubmit" type="submit">保存</button>
+                <div class="conn-item">
+                  <div class="conn-item-head">
+                    <span class="conn-label">插件令牌</span>
+                    <span class="conn-actions">
+                      <button class="token-toggle" id="connTokenToggle" type="button" aria-pressed="false">显示</button>
+                      <button class="copy-btn" id="connTokenCopy" type="button" disabled>复制</button>
+                    </span>
+                  </div>
+                  <div class="conn-value" id="connToken"></div>
                 </div>
-              </form>
+                <div class="conn-item">
+                  <div class="conn-item-head">
+                    <span class="conn-label">连接字符串</span>
+                    <span class="conn-actions">
+                      <button class="copy-btn" id="connStringCopy" type="button" disabled>复制</button>
+                    </span>
+                  </div>
+                  <div class="conn-value" id="connString"></div>
+                </div>
+              </div>
+              <p class="conn-error" id="connError" role="alert" hidden></p>
             </div>
-          </div>
-        </section>
+            <p class="settings-note">改完密码后令牌不变，连接参数也不变。</p>
+          </section>
 
-        <section class="acc-item" data-acc="about">
-          <h3 class="acc-heading">
-            <button class="acc-head" id="accAboutHead" type="button"
-                    aria-expanded="false" aria-controls="accAboutPanel">
-              <span class="acc-title">关于</span>
-              <span class="acc-arrow" aria-hidden="true"></span>
-            </button>
-          </h3>
-          <div class="acc-panel" id="accAboutPanel" aria-hidden="true">
-            <div class="acc-panel-inner">
-              <div class="about-block">
-                <p class="about-meta">插件版本 <span id="aboutVersion">—</span></p>
-                <p class="about-line">鲸鱼娘在线 · 在手机上和电脑里的 DSH 聊天</p>
-                <p class="about-copy">© 2026 HEHEz53 · 由 DeepSeek（鲸鱼娘）搭建</p>
+          <section class="settings-panel" data-panel="server" hidden>
+            <h3 class="settings-panel-title">服务器与部署</h3>
+            <div class="settings-status-list">
+              <div class="settings-status-row">
+                <span class="settings-status-label">服务器域名</span>
+                <span class="settings-status-value" id="serverHost">—</span>
+              </div>
+              <div class="settings-status-row">
+                <span class="settings-status-label">服务器地址</span>
+                <span class="settings-status-value" id="serverAddress">—</span>
               </div>
             </div>
-          </div>
-        </section>
+            <p class="settings-hint">SSH 配置、IP / 端口 / 用户 / 密码与域名需要在电脑端 DSH 的「手机网页对话」插件设置里配置；手机网页端暂不提供修改。</p>
+          </section>
+
+          <section class="settings-panel" data-panel="installed" hidden>
+            <h3 class="settings-panel-title">已安装插件</h3>
+            <p class="settings-hint">列表来自电脑端 DSH 的插件快照。启用开关沿用现有 setBundle 逻辑。</p>
+            <div class="plugin-list" id="pluginList"></div>
+            <p class="plugin-empty" id="pluginEmpty" hidden>正在读取插件信息…</p>
+          </section>
+
+          <section class="settings-panel" data-panel="install" hidden>
+            <h3 class="settings-panel-title">安装新插件</h3>
+            <p class="settings-hint">这里装的是电脑上 DSH 的插件。安装需要联网，可能会花几十秒到几分钟。</p>
+            <div class="plugin-install">
+              <input class="text-input plugin-input" id="pluginSpecInput" type="text"
+                     placeholder="npm 包名 / git 地址 / 本地路径，例如 @tencent-connect/dsh-qqbot"
+                     autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
+              <button class="primary-btn modal-submit plugin-install-btn" id="pluginInstallBtn" type="button">安装</button>
+            </div>
+            <p class="plugin-result" id="pluginInstallResult" role="status" hidden></p>
+            <pre class="plugin-diagnostic" id="pluginDiagnostic" hidden></pre>
+          </section>
+
+          <section class="settings-panel" data-panel="deploy" hidden>
+            <h3 class="settings-panel-title">部署 WebUI</h3>
+            <p class="settings-hint">一键部署 WebUI 需要在电脑端 DSH 的「手机网页对话」插件设置里操作。手机网页端暂不提供部署接口与日志。</p>
+          </section>
+
+          <section class="settings-panel" data-panel="password" hidden>
+            <h3 class="settings-panel-title">修改密码</h3>
+            <form class="pwd-form" id="passwordForm" novalidate>
+              <label class="modal-field">
+                <span class="modal-label">原密码</span>
+                <input class="text-input" id="oldPassword" type="password" placeholder="原密码"
+                       autocomplete="current-password" required>
+              </label>
+              <label class="modal-field">
+                <span class="modal-label">新密码</span>
+                <input class="text-input" id="newPassword" type="password" placeholder="至少 8 位"
+                       autocomplete="new-password" required>
+              </label>
+              <label class="modal-field">
+                <span class="modal-label">确认新密码</span>
+                <input class="text-input" id="confirmPassword" type="password" placeholder="再输入一次"
+                       autocomplete="new-password" required>
+              </label>
+              <p class="form-error" id="passwordError" role="alert" hidden></p>
+              <p class="form-success" id="passwordSuccess" role="status" hidden>密码已修改</p>
+              <div class="modal-actions">
+                <button class="ghost-btn" id="passwordCancel" type="button">取消</button>
+                <button class="primary-btn modal-submit" id="passwordSubmit" type="submit">保存</button>
+              </div>
+            </form>
+          </section>
+
+          <section class="settings-panel" data-panel="about" hidden>
+            <h3 class="settings-panel-title">关于本站</h3>
+            <div class="about-block">
+              <p class="about-meta">插件版本 <span id="aboutVersion">—</span></p>
+              <p class="about-line">鲸鱼娘在线 · 在手机上和电脑里的 DSH 聊天</p>
+              <p class="about-copy">© 2026 HEHEz53 · 由 DeepSeek（鲸鱼娘）搭建</p>
+            </div>
+          </section>
+        </div>
       </div>
     </div>
   </div>
 
   <div class="toast-host" id="toastHost" role="status" aria-live="polite"></div>
 
-  <script src="app.js?v=9"></script>
+  <script src="app.js?v=10"></script>
 </body>
 </html>

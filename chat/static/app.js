@@ -116,6 +116,17 @@
   var pluginEmpty = document.getElementById('pluginEmpty');
   var aboutVersion = document.getElementById('aboutVersion');
 
+  var settingsBackBtn = document.getElementById('settingsBack');
+  var settingsBreadcrumb = document.getElementById('settingsBreadcrumb');
+  var settingsMenuView = document.getElementById('settingsMenuView');
+  var settingsPanelView = document.getElementById('settingsPanelView');
+  var statusSocket = document.getElementById('statusSocket');
+  var statusAgent = document.getElementById('statusAgent');
+  var statusRelay = document.getElementById('statusRelay');
+  var statusServer = document.getElementById('statusServer');
+  var serverHost = document.getElementById('serverHost');
+  var serverAddress = document.getElementById('serverAddress');
+
   var mobileMedia = window.matchMedia ? window.matchMedia(MOBILE_QUERY) : null;
 
   /* ================= 状态 ================= */
@@ -191,6 +202,10 @@
     connInfo: null,
     connSeq: 0,
     tokenVisible: false,
+
+    /* 设置三级菜单 */
+    settingsSection: '',
+    settingsPanel: '',
 
     /* 信息面板折叠状态（默认展开模型 / 模式） */
     infoAccordionOpen: {
@@ -987,8 +1002,11 @@
     renderSidebar();
     updateHeader();
     if (state.infoOpen) renderInfoPanel();
-    if (!settingsModal.hidden) renderPluginList();
-    updateAboutVersion();
+    if (!settingsModal.hidden) {
+      renderPluginList();
+      updateAboutVersion();
+      if (state.settingsPanel === 'status') renderConnectionStatus();
+    }
     updateChatEmptyState();
   }
 
@@ -1780,27 +1798,6 @@
     return head;
   }
 
-  function resetSettingsAccordion() {
-    var items = settingsModal.querySelectorAll('.acc-item');
-    for (var i = 0; i < items.length; i++) {
-      setAccordionItemOpen(items[i], items[i].getAttribute('data-acc') === 'conn');
-    }
-  }
-
-  function setupSettingsAccordion() {
-    var items = settingsModal.querySelectorAll('.acc-item');
-    for (var i = 0; i < items.length; i++) {
-      (function (item) {
-        var head = item.querySelector('.acc-head');
-        if (!head) return;
-        head.addEventListener('click', function () {
-          setAccordionItemOpen(item, !item.classList.contains('is-open'));
-        });
-      })(items[i]);
-    }
-    resetSettingsAccordion();
-  }
-
   function resetInfoAccordionState() {
     state.infoAccordionOpen = {
       '模型': true,
@@ -1854,19 +1851,7 @@
   }
 
   function updateAboutVersion() {
-    var version = '';
-    var bundles = state.snapshot && state.snapshot.info
-      ? state.snapshot.info.bundles
-      : null;
-
-    if (Array.isArray(bundles)) {
-      for (var i = 0; i < bundles.length; i++) {
-        if (isRelayBundle(bundles[i].name) && bundles[i].version) {
-          version = String(bundles[i].version);
-        }
-      }
-    }
-    if (aboutVersion) aboutVersion.textContent = version || '未知';
+    if (aboutVersion) aboutVersion.textContent = currentRelayVersion() || '未知';
   }
 
   /* ================= 信息面板渲染 ================= */
@@ -2479,6 +2464,9 @@
     connServerCopy.disabled = !info.serverUrl;
     connTokenCopy.disabled = !token;
     connStringCopy.disabled = !info.connectString;
+
+    renderConnectionStatus();
+    renderServerInfo();
   }
 
   async function loadConnInfo() {
@@ -2503,7 +2491,8 @@
       state.connInfo = {
         serverUrl: typeof data.serverUrl === 'string' ? data.serverUrl : '',
         agentToken: typeof data.agentToken === 'string' ? data.agentToken : '',
-        connectString: typeof data.connectString === 'string' ? data.connectString : ''
+        connectString: typeof data.connectString === 'string' ? data.connectString : '',
+        host: typeof data.host === 'string' ? data.host : ''
       };
       renderConnInfo();
     } catch (err) {
@@ -2771,6 +2760,313 @@
     }
   }
 
+  /* ================= 设置：三级菜单 ================= */
+  var SETTINGS_SECTIONS = [
+    {
+      key: 'connection',
+      title: '连接',
+      desc: '连接状态、连接方式与服务器部署',
+      icon: [
+        'M9.5 14.5l5-5',
+        'M7.1 17.4a4.4 4.4 0 0 1 0-6.2l2-2',
+        'M16.9 6.6a4.4 4.4 0 0 1 0 6.2l-2 2'
+      ],
+      items: [
+        { key: 'status', title: '连接状态', desc: '看当前连没连上' },
+        { key: 'method', title: '连接方式', desc: '服务器地址、令牌与连接字符串' },
+        { key: 'server', title: '服务器与部署', desc: '服务器域名与部署说明' }
+      ]
+    },
+    {
+      key: 'plugins',
+      title: '插件',
+      desc: '安装、开关、卸载与部署',
+      icon: [
+        'M4 4h6v6H4z',
+        'M14 4h6v6h-6z',
+        'M4 14h6v6H4z',
+        'M14 14h6v6h-6z'
+      ],
+      items: [
+        { key: 'installed', title: '已安装插件', desc: '列表、启用开关与卸载' },
+        { key: 'install', title: '安装新插件', desc: 'npm 包名 / git 地址 / 本地路径' },
+        { key: 'deploy', title: '部署 WebUI', desc: '电脑端一键部署与日志' }
+      ]
+    },
+    {
+      key: 'security',
+      title: '安全',
+      desc: '修改登录密码',
+      icon: [
+        'M12 3l7 3v5.2c0 4.3-2.9 7.7-7 8.8-4.1-1.1-7-4.5-7-8.8V6z',
+        'M9.4 12l1.8 1.8 3.5-3.5'
+      ],
+      items: [
+        { key: 'password', title: '修改密码', desc: '原密码 / 新密码 / 确认新密码' }
+      ]
+    },
+    {
+      key: 'about',
+      title: '关于',
+      desc: '版本与版权信息',
+      icon: [
+        'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z',
+        'M12 10.7v6',
+        'M12 7.5h.01'
+      ],
+      items: [
+        { key: 'about', title: '关于本站', desc: '版本、© 声明' }
+      ]
+    }
+  ];
+
+  function createSettingsMenuIcon(paths) {
+    var svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('viewBox', '0 0 24 24');
+    svg.setAttribute('fill', 'none');
+    svg.setAttribute('stroke', 'currentColor');
+    svg.setAttribute('stroke-width', '1.8');
+    svg.setAttribute('stroke-linecap', 'round');
+    svg.setAttribute('stroke-linejoin', 'round');
+    svg.setAttribute('aria-hidden', 'true');
+    for (var i = 0; i < paths.length; i++) {
+      var path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      path.setAttribute('d', paths[i]);
+      svg.appendChild(path);
+    }
+    return svg;
+  }
+
+  function findSettingsSection(key) {
+    for (var i = 0; i < SETTINGS_SECTIONS.length; i++) {
+      if (SETTINGS_SECTIONS[i].key === key) return SETTINGS_SECTIONS[i];
+    }
+    return null;
+  }
+
+  function findSettingsItem(section, key) {
+    if (!section) return null;
+    for (var i = 0; i < section.items.length; i++) {
+      if (section.items[i].key === key) return section.items[i];
+    }
+    return null;
+  }
+
+  function currentRelayVersion() {
+    var bundles = state.snapshot && state.snapshot.info
+      ? state.snapshot.info.bundles
+      : null;
+    var version = '';
+    if (Array.isArray(bundles)) {
+      for (var i = 0; i < bundles.length; i++) {
+        if (isRelayBundle(bundles[i].name) && bundles[i].version) {
+          version = String(bundles[i].version);
+        }
+      }
+    }
+    return version;
+  }
+
+  function animateSettingsView(element, direction) {
+    if (!element) return;
+    element.classList.remove('settings-anim', 'is-back');
+    void element.offsetWidth;
+    if (direction === 'back') element.classList.add('is-back');
+    element.classList.add('settings-anim');
+  }
+
+  function makeSettingsCrumb(label, onClick, current) {
+    var button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'settings-crumb';
+    button.textContent = label;
+    if (current) button.setAttribute('aria-current', 'page');
+    button.addEventListener('click', onClick);
+    return button;
+  }
+
+  function renderSettingsBreadcrumb() {
+    settingsBreadcrumb.textContent = '';
+
+    var level = state.settingsPanel ? 3 : (state.settingsSection ? 2 : 1);
+    settingsBreadcrumb.appendChild(makeSettingsCrumb('设置', function () {
+      goSettingsRoot('back');
+    }, level === 1));
+
+    var section = state.settingsSection ? findSettingsSection(state.settingsSection) : null;
+    if (!section) return;
+
+    var sep1 = document.createElement('span');
+    sep1.className = 'settings-crumb-sep';
+    sep1.textContent = '›';
+    settingsBreadcrumb.appendChild(sep1);
+    settingsBreadcrumb.appendChild(makeSettingsCrumb(section.title, function () {
+      openSettingsSection(section.key, 'back');
+    }, level === 2));
+
+    if (!state.settingsPanel) return;
+    var item = findSettingsItem(section, state.settingsPanel);
+    if (!item) return;
+
+    var sep2 = document.createElement('span');
+    sep2.className = 'settings-crumb-sep';
+    sep2.textContent = '›';
+    settingsBreadcrumb.appendChild(sep2);
+    settingsBreadcrumb.appendChild(makeSettingsCrumb(item.title, function () {
+      openSettingsPanel(section.key, item.key, 'back');
+    }, true));
+  }
+
+  function showSettingsPanel(panelKey) {
+    var panels = settingsPanelView.querySelectorAll('.settings-panel');
+    for (var i = 0; i < panels.length; i++) {
+      panels[i].hidden = panels[i].getAttribute('data-panel') !== panelKey;
+    }
+  }
+
+  function renderSettingsMenu() {
+    settingsMenuView.textContent = '';
+
+    var section = state.settingsSection ? findSettingsSection(state.settingsSection) : null;
+    var items = section ? section.items : SETTINGS_SECTIONS;
+
+    for (var i = 0; i < items.length; i++) {
+      (function (item, parent) {
+        var row = document.createElement('button');
+        row.type = 'button';
+        row.className = 'settings-menu-row' + (parent ? ' is-sub' : '');
+
+        if (!parent) {
+          var icon = document.createElement('span');
+          icon.className = 'settings-menu-icon';
+          icon.appendChild(createSettingsMenuIcon(item.icon));
+          row.appendChild(icon);
+        }
+
+        var main = document.createElement('span');
+        main.className = 'settings-menu-main';
+
+        var title = document.createElement('span');
+        title.className = 'settings-menu-title';
+        title.textContent = item.title;
+        main.appendChild(title);
+
+        var desc = document.createElement('span');
+        desc.className = 'settings-menu-desc';
+        desc.textContent = item.desc;
+        main.appendChild(desc);
+        row.appendChild(main);
+
+        var arrow = document.createElement('span');
+        arrow.className = 'settings-menu-arrow';
+        arrow.setAttribute('aria-hidden', 'true');
+        arrow.textContent = '›';
+        row.appendChild(arrow);
+
+        row.addEventListener('click', function () {
+          if (parent) openSettingsPanel(parent.key, item.key, 'forward');
+          else openSettingsSection(item.key, 'forward');
+        });
+
+        settingsMenuView.appendChild(row);
+      })(items[i], section);
+    }
+  }
+
+  function renderSettingsNav(direction) {
+    renderSettingsBreadcrumb();
+    settingsBackBtn.hidden = !state.settingsSection;
+
+    if (!state.settingsPanel) {
+      settingsMenuView.hidden = false;
+      settingsPanelView.hidden = true;
+      renderSettingsMenu();
+      animateSettingsView(settingsMenuView, direction);
+      return;
+    }
+
+    settingsMenuView.hidden = true;
+    settingsPanelView.hidden = false;
+    showSettingsPanel(state.settingsPanel);
+    animateSettingsView(settingsPanelView, direction);
+
+    if (state.settingsPanel === 'status') renderConnectionStatus();
+    else if (state.settingsPanel === 'server') renderServerInfo();
+    else if (state.settingsPanel === 'about') updateAboutVersion();
+  }
+
+  function openSettingsSection(key, direction) {
+    state.settingsSection = key || '';
+    state.settingsPanel = '';
+    renderSettingsNav(direction || 'forward');
+  }
+
+  function openSettingsPanel(sectionKey, panelKey, direction) {
+    state.settingsSection = sectionKey || '';
+    state.settingsPanel = panelKey || '';
+    renderSettingsNav(direction || 'forward');
+  }
+
+  function goSettingsRoot(direction) {
+    state.settingsSection = '';
+    state.settingsPanel = '';
+    renderSettingsNav(direction || 'back');
+  }
+
+  function goSettingsBack() {
+    if (state.settingsPanel) {
+      state.settingsPanel = '';
+      renderSettingsNav('back');
+      return;
+    }
+    if (state.settingsSection) {
+      state.settingsSection = '';
+      renderSettingsNav('back');
+    }
+  }
+
+  function renderConnectionStatus() {
+    if (!statusSocket) return;
+
+    statusSocket.textContent = state.wsOpen
+      ? '已连接'
+      : (state.everConnected ? '重连中…' : '连接中…');
+
+    var agentText = '检测中…';
+    var agentClass = '';
+    if (state.agentOnline === true) {
+      agentText = '在线';
+      agentClass = 'is-ok';
+    } else if (state.agentOnline === false) {
+      agentText = '离线';
+      agentClass = 'is-bad';
+    } else if (!state.wsOpen) {
+      agentText = '未连接';
+    }
+    statusAgent.textContent = agentText;
+    statusAgent.classList.remove('is-ok', 'is-bad');
+    if (agentClass) statusAgent.classList.add(agentClass);
+
+    var relay = currentRelayVersion();
+    statusRelay.textContent = relay || '未知';
+    statusServer.textContent = state.connInfo && state.connInfo.serverUrl
+      ? state.connInfo.serverUrl
+      : '—';
+  }
+
+  function renderServerInfo() {
+    if (serverHost) {
+      serverHost.textContent = state.connInfo && state.connInfo.host
+        ? state.connInfo.host
+        : '—';
+    }
+    if (serverAddress) {
+      serverAddress.textContent = state.connInfo && state.connInfo.serverUrl
+        ? state.connInfo.serverUrl
+        : '—';
+    }
+  }
+
   function openSettings() {
     if (state.view !== 'chat') return;
     closeDrawer();
@@ -2784,10 +3080,12 @@
     clearPluginRemoveConfirm();
     setPluginInstallBusy(state.pluginInstalling);
     renderPluginList();
-    resetSettingsAccordion();
     updateAboutVersion();
     loadConnInfo();
+    state.settingsSection = '';
+    state.settingsPanel = '';
     settingsModal.hidden = false;
+    renderSettingsNav('forward');
     window.requestAnimationFrame(function () {
       settingsModal.classList.add('is-open');
     });
@@ -3026,6 +3324,9 @@
     connDot.setAttribute('data-state', stateName);
     connDot.setAttribute('title', label);
     connDot.setAttribute('aria-label', '状态：' + label);
+    if (!settingsModal.hidden && state.settingsPanel === 'status') {
+      renderConnectionStatus();
+    }
     updateAgentBanner();
   }
 
@@ -3339,6 +3640,8 @@
     state.pendingSends = {};
     state.flashSessionId = '';
     state.setupBusy = false;
+    state.settingsSection = '';
+    state.settingsPanel = '';
     state.unsupported = { setModel: false, setPreset: false, setBundle: false };
     state.modelBusy = false;
     state.modelBusyKey = '';
@@ -3457,7 +3760,6 @@
   function bindEvents() {
     loginForm.addEventListener('submit', onLoginSubmit);
     setupForm.addEventListener('submit', onSetupSubmit);
-    setupSettingsAccordion();
     themeBtn.addEventListener('click', toggleTheme);
     logoutBtn.addEventListener('click', onLogoutClick);
     infoBtn.addEventListener('click', openInfo);
@@ -3473,6 +3775,7 @@
     createBackdrop.addEventListener('click', closeCreateModal);
     settingsCloseBtn.addEventListener('click', closeSettings);
     settingsBackdrop.addEventListener('click', closeSettings);
+    settingsBackBtn.addEventListener('click', goSettingsBack);
     passwordCancelBtn.addEventListener('click', closeSettings);
     passwordForm.addEventListener('submit', onPasswordSubmit);
 

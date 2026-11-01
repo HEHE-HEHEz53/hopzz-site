@@ -15,7 +15,7 @@
  * 通信是「插件主动外连」，家里不需要公网 IP。
  */
 
-import Schema from '@deepseek-ai/schemastery';
+// 不再依赖 @deepseek-ai/schemastery：插件是软链接安装，Node 从真实路径解析，找不到 DSH 内部包。
 import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -33,22 +33,11 @@ const TAG = `[web-relay@${VERSION}]`;
 const HERE = dirname(fileURLToPath(import.meta.url));
 const SETTINGS_FILE = join(HERE, 'settings.json');
 
-export const Config = Schema.object({
-  connectString: Schema.string()
-    .default('')
-    .description(
-      '连接字符串：在网页「设置 → 连接参数」里复制那一大串粘到这里即可；填了它就不必再填下面的分项'
-    ),
-  serverUrl: Schema.string()
-    .default('wss://ai.hopzz.top/agent-ws')
-    .description('中继服务器地址（WebSocket）'),
-  agentToken: Schema.string().default('').description('插件令牌（在网页设置里能看到）'),
-  maxReconnectMs: Schema.natural().default(30000).description('断线重连最大间隔（毫秒）'),
-});
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-export function apply(ctx, config) {
+export function apply(ctx, config = {}) {
+  config = config || {};
   // 启动自检：万一后面抛错，也能知道 apply 走到这里了
   writeBootInfo({ version: VERSION, stage: 'apply-start', at: new Date().toISOString(), routes: [], error: '' });
   const log = (...a) => console.log(TAG, ...a);
