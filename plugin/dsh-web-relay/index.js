@@ -16,11 +16,18 @@
  */
 
 import Schema from '@deepseek-ai/schemastery';
+import { readFileSync, writeFileSync, existsSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { spawn } from 'node:child_process';
 
 export const name = 'web-relay';
 
-const VERSION = '2.2.0';
+const VERSION = '2.3.0';
 const TAG = `[web-relay@${VERSION}]`;
+
+const HERE = dirname(fileURLToPath(import.meta.url));
+const SETTINGS_FILE = join(HERE, 'settings.json');
 
 export const Config = Schema.object({
   connectString: Schema.string()
@@ -46,6 +53,301 @@ export function apply(ctx, config) {
   let attempts = 0;
   let reconnectTimer = null;
   let pingTimer = null;
+
+  // ------------------------------------------------------------ 设置存储
+  const SETTINGS_DEFAULTS = {
+    mode: '',
+    connectString: '',
+    serverUrl: '',
+    agentToken: '',
+    maxReconnectMs: 0,
+    sshConfigPath: 'D:\\DSH\\work\\.ssh\\config',
+    sshTarget: 'vps',
+    repoPath: 'D:\\DSH\\work',
+  };
+
+  function loadSettings() {
+    try {
+      if (!existsSync(SETTINGS_FILE)) return { ...SETTINGS_DEFAULTS };
+      const raw = JSON.parse(readFileSync(SETTINGS_FILE, 'utf8'));
+      return { ...SETTINGS_DEFAULTS, ...(raw && typeof raw === 'object' ? raw : {}) };
+    } catch (err) {
+      warn('读取 settings.json 失败:', err?.message ?? err);
+      return { ...SETTINGS_DEFAULTS };
+    }
+  }
+
+  let runtimeSettings = loadSettings();
+
+  function saveSettings(patch) {
+    runtimeSettings = { ...runtimeSettings, ...patch };
+    try {
+      writeFileSync(SETTINGS_FILE, JSON.stringify(runtimeSettings, null, 2), 'utf8');
+    } catch (err) {
+      throw new Error('写入 settings.json 失败：' + (err?.message ?? err));
+    }
+  }
+
+  function restartConnection() {
+    if (pingTimer) {
+      clearInterval(pingTimer);
+      pingTimer = null;
+    }
+    if (reconnectTimer) {
+      clearTimeout(reconnectTimer);
+      reconnectTimer = null;
+    }
+    const old = socket;
+    socket = null;
+    try {
+      old?.close();
+    } catch {
+      /* 忽略 */
+    }
+    attempts = 0;
+    connect();
+  }
+
+  function isConnected() {
+    return !!(socket && socket.readyState === 1);
+  }
+
+  function statusPayload() {
+    const conn = effectiveConnection();
+    return {
+      ok: true,
+      version: VERSION,
+      connected: isConnected(),
+      mode: runtimeSettings.mode || (runtimeSettings.connectString ? 'string' : 'fields'),
+      connectString: runtimeSettings.connectString || '',
+      serverUrl: runtimeSettings.serverUrl || config.serverUrl || '',
+      agentToken: runtimeSettings.agentToken || config.agentToken || '',
+      effectiveUrl: conn.serverUrl,
+      source: conn.source,
+      maxReconnectMs: runtimeSettings.maxReconnectMs || config.maxReconnectMs || 30000,
+      sshConfigPath: runtimeSettings.sshConfigPath || '',
+      sshTarget: runtimeSettings.sshTarget || '',
+      repoPath: runtimeSettings.repoPath || '',
+    };
+  }
+
+  // ------------------------------------------------------------ 一键部署
+  function runCommand(cmd, args, timeoutMs = 180000) {
+    return new Promise((resolve) => {
+      let out = '';
+      let child;
+      try {
+        child = spawn(cmd, args, { windowsHide: true });
+      } catch (err) {
+        return resolve({ code: -1, out: String(err?.message ?? err) });
+      }
+      const timer = setTimeout(() => {
+        try {
+          child.kill();
+        } catch {
+          /* 忽略 */
+        }
+        resolve({ code: -1, out: out + '\n[超时，已终止]' });
+      }, timeoutMs);
+      const collect = (d) => {
+        if (out.length < 400000) out += d.toString();
+      };
+      child.stdout?.on('data', collect);
+      child.stderr?.on('data', collect);
+      child.on('error', (err) => {
+        clearTimeout(timer);
+        resolve({ code: -1, out: out + '\n' + String(err?.message ?? err) });
+      });
+      child.on('close', (code) => {
+        clearTimeout(timer);
+        resolve({ code: code ?? -1, out });
+      });
+    });
+  }
+
+  async function deployWebui() {
+    const repo = runtimeSettings.repoPath || 'D:\\DSH\\work';
+    const cfgPath = runtimeSettings.sshConfigPath || 'D:\\DSH\\work\\.ssh\\config';
+    const target = runtimeSettings.sshTarget || 'vps';
+    const chatDir = join(repo, 'chat');
+
+    if (!existsSync(cfgPath)) {
+      return { ok: false, message: '找不到 SSH 配置：' + cfgPath + '（在「常规设置」里改）', log: '' };
+    }
+    if (!existsSync(chatDir)) {
+      return { ok: false, message: '找不到 chat 目录：' + chatDir, log: '' };
+    }
+
+    let logText = `仓库: ${repo}\nSSH 配置: ${cfgPath}\n目标: ${target}\n\n`;
+
+    const step1 = await runCommand('ssh', ['-F', cfgPath, target, 'rm -rf /root/chat-deploy'], 60000);
+    logText += `$ ssh ${target} "rm -rf /root/chat-deploy"\n${step1.out}\n`;
+    if (step1.code !== 0) {
+      return { ok: false, message: '连不上服务器（SSH 失败），检查「常规设置」里的 SSH 配置和主机名', log: logText };
+    }
+
+    const step2 = await runCommand(
+      'scp',
+      ['-F', cfgPath, '-r', chatDir, `${target}:/root/chat-deploy`],
+      300000
+    );
+    logText += `$ scp -r chat ${target}:/root/chat-deploy\n${step2.out}\n`;
+    if (step2.code !== 0) {
+      return { ok: false, message: '上传文件失败', log: logText };
+    }
+
+    const step3 = await runCommand(
+      'ssh',
+      ['-F', cfgPath, target, 'bash /root/chat-deploy/install_chat.sh'],
+      300000
+    );
+    logText += `$ ssh ${target} "bash /root/chat-deploy/install_chat.sh"\n${step3.out}\n`;
+    return {
+      ok: step3.code === 0,
+      message: step3.code === 0 ? '部署完成' : '安装脚本返回失败，看下面日志',
+      log: logText,
+    };
+  }
+
+  // ------------------------------------------------------------ 测试连接
+  function testConnection() {
+    const conn = effectiveConnection();
+    if (!conn.agentToken) {
+      return Promise.resolve({ ok: false, message: '还没有配置令牌' });
+    }
+    return new Promise((resolve) => {
+      let done = false;
+      let probe = null;
+      const finish = (ok, message) => {
+        if (done) return;
+        done = true;
+        try {
+          probe?.close();
+        } catch {
+          /* 忽略 */
+        }
+        resolve({ ok, message });
+      };
+      const timer = setTimeout(() => finish(false, '连接超时（8 秒）'), 8000);
+      try {
+        probe = new WebSocket(`${conn.serverUrl}?token=${encodeURIComponent(conn.agentToken)}`);
+      } catch (err) {
+        clearTimeout(timer);
+        return finish(false, String(err?.message ?? err));
+      }
+      probe.addEventListener('open', () => {
+        clearTimeout(timer);
+        finish(true, '连接正常');
+      });
+      probe.addEventListener('error', () => {
+        clearTimeout(timer);
+        finish(false, '连接失败（地址或令牌不对）');
+      });
+    });
+  }
+
+  // ------------------------------------------------------------ 设置面板的 HTTP 接口
+  async function handleRoute(req, res) {
+    const url = new URL(req.url || '/', 'http://127.0.0.1');
+    const pathname = url.pathname;
+
+    const reply = (status, obj) => {
+      try {
+        res.writeHead(status, {
+          'Content-Type': 'application/json; charset=utf-8',
+          'Cache-Control': 'no-store',
+        });
+        res.end(JSON.stringify(obj));
+      } catch {
+        /* 连接可能已断 */
+      }
+    };
+
+    const readJson = async () => {
+      const chunks = [];
+      let size = 0;
+      for await (const chunk of req) {
+        size += chunk.length;
+        if (size > 2_000_000) break;
+        chunks.push(chunk);
+      }
+      try {
+        return JSON.parse(Buffer.concat(chunks).toString('utf8') || '{}');
+      } catch {
+        return {};
+      }
+    };
+
+    try {
+      if (pathname === '/web-relay/api/status') {
+        return reply(200, statusPayload());
+      }
+
+      if (pathname === '/web-relay/api/settings' && req.method === 'POST') {
+        const body = await readJson();
+        const mode = body.mode === 'fields' ? 'fields' : 'string';
+        if (mode === 'string') {
+          const cs = String(body.connectString || '').trim();
+          if (!cs) throw new Error('连接字符串不能为空');
+          if (!parseConnectString(cs)) throw new Error('连接字符串格式不对（应以 whale1. 开头）');
+          saveSettings({ mode, connectString: cs });
+        } else {
+          const sUrl = String(body.serverUrl || '').trim();
+          const sTok = String(body.agentToken || '').trim();
+          if (!/^wss?:\/\//.test(sUrl)) throw new Error('服务器地址要以 ws:// 或 wss:// 开头');
+          if (!sTok) throw new Error('令牌不能为空');
+          saveSettings({ mode, serverUrl: sUrl, agentToken: sTok });
+        }
+        restartConnection();
+        return reply(200, { ok: true, message: '已保存，正在重连…' });
+      }
+
+      if (pathname === '/web-relay/api/general' && req.method === 'POST') {
+        const body = await readJson();
+        const patch = {};
+        if (body.maxReconnectMs !== undefined) {
+          const ms = Number(body.maxReconnectMs);
+          patch.maxReconnectMs = Number.isFinite(ms) && ms >= 1000 ? Math.min(ms, 300000) : 30000;
+        }
+        if (typeof body.sshConfigPath === 'string') patch.sshConfigPath = body.sshConfigPath.trim();
+        if (typeof body.sshTarget === 'string') patch.sshTarget = body.sshTarget.trim();
+        if (typeof body.repoPath === 'string' && body.repoPath.trim()) patch.repoPath = body.repoPath.trim();
+        saveSettings(patch);
+        return reply(200, { ok: true, message: '已保存' });
+      }
+
+      if (pathname === '/web-relay/api/test' && req.method === 'POST') {
+        const result = await testConnection();
+        return reply(200, result);
+      }
+
+      if (pathname === '/web-relay/api/deploy' && req.method === 'POST') {
+        const result = await deployWebui();
+        return reply(200, result);
+      }
+
+      return reply(404, { ok: false, error: '未知接口' });
+    } catch (err) {
+      warn('设置接口出错:', err?.message ?? err);
+      return reply(400, { ok: false, error: String(err?.message ?? err) });
+    }
+  }
+
+  function registerRoutes() {
+    let web;
+    try {
+      web = ctx.get('webServer');
+    } catch {
+      web = undefined;
+    }
+    if (!web || typeof web.register !== 'function') {
+      warn('webServer 不可用，设置面板的数据接口没有注册');
+      return;
+    }
+    const dispose = web.register({ kind: 'prefix', path: '/web-relay/api', handler: handleRoute });
+    if (typeof ctx.effect === 'function') ctx.effect(() => dispose);
+    log('设置面板接口已注册：/web-relay/api/*');
+  }
 
   // ------------------------------------------------------------ 服务访问
   function svc(name) {
@@ -474,7 +776,8 @@ export function apply(ctx, config) {
   function scheduleReconnect() {
     if (stopped || reconnectTimer) return;
     attempts += 1;
-    const delay = Math.min(1000 * 2 ** Math.min(attempts, 5), config.maxReconnectMs);
+    const maxMs = runtimeSettings.maxReconnectMs || config.maxReconnectMs || 30000;
+    const delay = Math.min(1000 * 2 ** Math.min(attempts, 5), maxMs);
     log(`${Math.round(delay / 1000)}s 后重连（第 ${attempts} 次）`);
     reconnectTimer = setTimeout(() => {
       reconnectTimer = null;
@@ -512,17 +815,16 @@ export function apply(ctx, config) {
     }
   }
 
-  /** 实际生效的连接配置：连接字符串优先，其次分项配置 */
+  /** 实际生效的连接配置：设置面板 > settings.json > 插件 Config > 默认值 */
   function effectiveConnection() {
-    const parsed = parseConnectString(config.connectString);
-    if (parsed) {
-      return { ...parsed, source: 'connectString' };
+    const s = runtimeSettings;
+    const cs = String(s.connectString || '').trim();
+    const parsed = parseConnectString(cs);
+    if (parsed) return { ...parsed, source: 'connectString' };
+    if (s.serverUrl && s.agentToken) {
+      return { serverUrl: String(s.serverUrl), agentToken: String(s.agentToken), source: 'fields' };
     }
-    return {
-      serverUrl: config.serverUrl,
-      agentToken: config.agentToken,
-      source: 'fields',
-    };
+    return { serverUrl: config.serverUrl, agentToken: config.agentToken, source: 'config' };
   }
 
   function connect() {
@@ -578,6 +880,7 @@ export function apply(ctx, config) {
     ws.addEventListener('error', () => warn('连接出错'));
   }
 
+  registerRoutes();
   connect();
 
   ctx.effect(() => () => {
