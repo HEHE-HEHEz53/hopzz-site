@@ -156,3 +156,39 @@
 - 它是 DSH 的一个 **bundle 插件**（`@local/dsh-web-relay` 2.0.3），用 `plugin_manager` 安装，随 DSH 启动自动运行
 
 > **不需要绑定 GitHub。** 之前提到 GitHub 只是因为你 profile 里有个主题包托管在 GitHub 上、当时网络连不上，跟这个页面没有任何关系。
+---
+
+## 8. 代码仓库
+
+| 用途 | 地址 |
+| --- | --- |
+| **主仓库（GitHub，公开）** | https://github.com/HEHE-HEHEz53/hopzz-site |
+| 自建镜像（自己服务器，公开可克隆） | https://git.hopzz.top/hopzz-site.git |
+
+**为什么有两个**：你本机网络访问 GitHub 不稳定，所以 GitHub 是「对外的主仓库」，
+自建的是「随时能连的镜像」。本地写代码 → 推自建 → 脚本一键同步到 GitHub。
+
+### 日常流程
+
+```
+# 1. 本地提交
+git add -A
+git commit -m "改了什么"
+
+# 2. 推到自建仓库
+git push vps main
+
+# 3. 同步到 GitHub（在服务器上跑一次）
+ssh -F D:\DSH\work\.ssh\config vps "bash /root/sync_github.sh"
+```
+
+### 令牌
+
+GitHub 推送用的 token 存在服务器 /root/.gh_token（权限 600，只有 root 能读）。
+7 天后过期，过期后重新生成一个并覆盖这个文件即可：
+
+`ash
+printf %s "新的token" > /root/.gh_token && chmod 600 /root/.gh_token
+`
+
+不想留就把文件删掉，随时可以撤销 token。
