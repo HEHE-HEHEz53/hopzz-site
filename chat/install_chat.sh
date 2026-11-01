@@ -24,9 +24,15 @@ if ! command -v rsync >/dev/null 2>&1; then
 fi
 
 if [[ "$ADDR" == *:* ]]; then
+  # IP:端口 或 域名:端口 → 纯 HTTP
   MODE="ipport"
   LISTEN_PORT="${ADDR##*:}"
   HOST_ONLY="${ADDR%%:*}"
+elif [[ "$ADDR" =~ ^[0-9]{1,3}(\.[0-9]{1,3}){3}$ ]]; then
+  # 只填了 IP（没端口）→ 默认 8888 端口，纯 HTTP，不申请证书
+  MODE="ipport"
+  LISTEN_PORT="8888"
+  HOST_ONLY="$ADDR"
 else
   MODE="domain"
   LISTEN_PORT="443"
@@ -56,9 +62,34 @@ else
 fi
 
 step "3. Python 依赖"
-[[ -x "$APP/venv/bin/python" ]] || python3 -m venv "$APP/venv"
-"$APP/venv/bin/pip" install --quiet --upgrade pip
-"$APP/venv/bin/pip" install --quiet fastapi uvicorn "websockets>=12"
+# ensurepip（python3-venv 包）在 Debian 上是可选的，必须先补上
+if ! python3 -c 'import ensurepip' >/dev/null 2>&1; then
+  echo "缺少 python3-venv，尝试自动安装…"
+  apt-get update -qq >/dev/null 2>&1 || true
+  apt-get -y install python3-venv python3-pip >/dev/null 2>&1 || true
+fi
+
+if [[ ! -x "$APP/venv/bin/python" ]]; then
+  if ! python3 -m venv "$APP/venv" >/dev/null 2>&1; then
+    echo "venv 创建失败，改用系统 Python 兼容模式"
+    rm -rf "$APP/venv"
+    mkdir -p "$APP/venv/bin"
+    ln -sf "$(command -v python3)" "$APP/venv/bin/python"
+    ln -sf "$(command -v python3)" "$APP/venv/bin/python3"
+    PIPFLAGS="--break-system-packages"
+  fi
+fi
+
+if [[ -x "$APP/venv/bin/pip" ]]; then
+  "$APP/venv/bin/pip" install --quiet --upgrade pip
+  "$APP/venv/bin/pip" install --quiet fastapi uvicorn "websockets>=12"
+else
+  "$APP/venv/bin/python" -m pip install --quiet ${PIPFLAGS:-} --upgrade pip >/dev/null 2>&1 || true
+  "$APP/venv/bin/python" -m pip install --quiet ${PIPFLAGS:-} fastapi uvicorn "websockets>=12" || {
+    apt-get -y install python3-pip >/dev/null 2>&1 || true
+    "$APP/venv/bin/python" -m pip install --quiet ${PIPFLAGS:-} fastapi uvicorn "websockets>=12"
+  }
+fi
 
 step "4. 权限与 systemd"
 chown -R www-data:www-data "$APP/data" "$APP/static"
