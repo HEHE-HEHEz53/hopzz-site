@@ -18,6 +18,10 @@ step() { echo; echo "========== $* =========="; }
 [[ $EUID -eq 0 ]] || { echo "需要 root"; exit 1; }
 command -v nginx >/dev/null || { echo "没装 nginx：apt -y install nginx"; exit 1; }
 command -v python3 >/dev/null || { echo "没装 python3"; exit 1; }
+if ! command -v rsync >/dev/null 2>&1; then
+  echo "没装 rsync，尝试自动安装…"
+  apt-get -y install rsync >/dev/null 2>&1 || echo "rsync 装不上，将改用 cp -a"
+fi
 
 if [[ "$ADDR" == *:* ]]; then
   MODE="ipport"
@@ -33,8 +37,8 @@ step "0. 目标：$ADDR（模式：$MODE）"
 
 step "1. 目录与文件"
 mkdir -p "$APP/server" "$APP/static" "$APP/data" "$ACME"
-rsync -a "$SRC/server/" "$APP/server/"
-[ -d "$SRC/static" ] && rsync -a "$SRC/static/" "$APP/static/"
+if command -v rsync >/dev/null 2>&1; then rsync -a "$SRC/server/" "$APP/server/"; else cp -a "$SRC/server/." "$APP/server/"; fi
+if [ -d "$SRC/static" ]; then if command -v rsync >/dev/null 2>&1; then rsync -a "$SRC/static/" "$APP/static/"; else cp -a "$SRC/static/." "$APP/static/"; fi; fi
 echo "已同步到 $APP"
 
 step "2. 密钥（只生成一次）"
