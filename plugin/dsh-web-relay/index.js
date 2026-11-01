@@ -23,7 +23,11 @@ import { spawn } from 'node:child_process';
 
 export const name = 'web-relay';
 
-const VERSION = '2.4.0';
+// 关键：声明依赖 webServer，Cordis 会等 Web 服务就绪后再调用 apply。
+// 否则插件启动太早，ctx.get('webServer') 拿到 undefined，设置面板接口就全 404。
+export const inject = ['webServer'];
+
+const VERSION = '2.5.0';
 const TAG = `[web-relay@${VERSION}]`;
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -853,6 +857,57 @@ export function apply(ctx, config) {
     return { name, enabled, result: normalized };
   }
 
+  // ------------------------------------------------------------ 从网页装/卸插件
+  function pickChangeResult(result) {
+    const out = {};
+    if (result && typeof result === 'object') {
+      for (const k of ['application', 'changed', 'warnings', 'nextStep', 'restartRequired', 'error']) {
+        if (result[k] !== undefined) out[k] = result[k];
+      }
+    }
+    return out;
+  }
+
+  async function installPlugin(payload) {
+    const pm = svc('pluginManager');
+    if (!pm) throw new Error('pluginManager 不可用');
+    const spec = String(payload?.spec ?? '').trim();
+    if (!spec) throw new Error('请填写要安装的插件名或地址');
+
+    const result = await pm.installBundle(spec);
+    const normalized = pickChangeResult(result);
+    const failed = normalized.application === 'failed' || normalized.error;
+    return {
+      spec,
+      ok: !failed,
+      message: failed
+        ? '安装失败：' + (normalized.error?.code ?? normalized.application ?? 'unknown')
+        : normalized.application === 'applied'
+          ? '已安装并生效'
+          : '已安装（' + (normalized.application ?? '待生效') + '，可能需要重启 DSH）',
+      result: normalized,
+    };
+  }
+
+  async function removePlugin(payload) {
+    const pm = svc('pluginManager');
+    if (!pm) throw new Error('pluginManager 不可用');
+    const name = String(payload?.name ?? '').trim();
+    if (!name) throw new Error('缺少插件名');
+    if (name === '@local/dsh-web-relay') {
+      throw new Error('不能卸载本页面自己用的插件（会直接断线）');
+    }
+
+    const result = await pm.removeBundle(name);
+    const normalized = pickChangeResult(result);
+    return {
+      name,
+      ok: normalized.application !== 'failed',
+      message: normalized.application === 'failed' ? '卸载失败' : '已卸载',
+      result: normalized,
+    };
+  }
+
   // ------------------------------------------------------------ 请求分发
   async function handleRequest(request) {
     const { id, action, payload } = request;
@@ -883,6 +938,12 @@ export function apply(ctx, config) {
           break;
         case 'setBundle':
           data = await setBundle(payload);
+          break;
+        case 'installPlugin':
+          data = await installPlugin(payload);
+          break;
+        case 'removePlugin':
+          data = await removePlugin(payload);
           break;
         case 'info':
           data = await readInfo();
