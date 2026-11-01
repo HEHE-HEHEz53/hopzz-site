@@ -28,7 +28,7 @@ export const name = 'web-relay';
 // 否则插件启动太早，ctx.get('webServer') 拿到 undefined，设置面板接口就全 404。
 export const inject = ['webServer'];
 
-const VERSION = '2.6.0';
+const VERSION = '2.7.0';
 const TAG = `[web-relay@${VERSION}]`;
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -188,6 +188,37 @@ export function apply(ctx, config = {}) {
     return matched ? matched[0] : '';
   }
 
+  /** 生成 SSH_ASKPASS 帮助脚本，用 Windows 自带 OpenSSH 做密码登录（不需要 PuTTY） */
+  function makeAskpass(password) {
+    const dir = join(tmpdir(), 'hopzz-ask-' + Date.now());
+    mkdirSync(dir, { recursive: true });
+    const file = join(dir, 'askpass.cmd');
+    const safe = String(password).replace(/([&<>|^%])/g, '^$1');
+    writeFileSync(file, '@echo off\r\necho ' + safe + '\r\n', 'utf8');
+    return { file, dir };
+  }
+
+  function sshEnv(askpass) {
+    return {
+      SSH_ASKPASS: askpass.file,
+      SSH_ASKPASS_REQUIRE: 'force',
+      DISPLAY: ':0',
+    };
+  }
+
+  function resolveBin(name) {
+    // Windows 自带 OpenSSH 路径
+    const candidates = [
+      'C:\\Windows\\System32\\OpenSSH\\' + name + '.exe',
+      name,
+    ];
+    for (const p of candidates) {
+      if (p === name) return name; // 交给 PATH
+      if (existsSync(p)) return p;
+    }
+    return name;
+  }
+
   /** 用 Node 自带 fetch 下载文件 */
   async function downloadFile(url, dest) {
     const res = await fetch(url);
@@ -245,63 +276,73 @@ export function apply(ctx, config = {}) {
     const usePassword = !!runtimeSettings.deployHost && !!runtimeSettings.deployPassword;
 
     if (usePassword) {
-      // ---------- 密码登录模式（plink / pscp）----------
       const host = runtimeSettings.deployHost;
       const port = Number(runtimeSettings.deployPort) || 22;
       const user = runtimeSettings.deployUser || 'root';
       const password = runtimeSettings.deployPassword;
-      const plink = runtimeSettings.plinkPath || 'D:\\app\\putty\\plink.exe';
-      const pscp = runtimeSettings.pscpPath || 'D:\\app\\putty\\pscp.exe';
       const remote = `${user}@${host}`;
+      const plink = runtimeSettings.plinkPath || 'plink.exe';
+      const pscp = runtimeSettings.pscpPath || 'pscp.exe';
+      const hasPutty = existsSync(plink) && existsSync(pscp);
 
-      logText += `方式: 密码登录 ${remote}:${port}\n\n`;
+      logText += `方式: 密码登录 ${remote}:${port}（${hasPutty ? 'PuTTY' : 'Windows 自带 OpenSSH'}）\n\n`;
 
-      if (!existsSync(plink)) {
-        return { ok: false, message: '找不到 plink：' + plink + '（在常规设置里改）', log: logText };
+      let runRemote;
+      let runCopy;
+
+      if (hasPutty) {
+        logText += '1) 获取服务器主机指纹…\n';
+        const fp = await ensureHostKey(host, port, user);
+        logText += fp ? `   指纹 ${fp}\n\n` : '   没拿到指纹，继续\n\n';
+        const keyArg = fp ? ['-hostkey', fp] : [];
+        runRemote = (cmd) =>
+          runCommand(plink, ['-batch', '-P', String(port), '-l', user, '-pw', password, ...keyArg, host, cmd], 300000);
+        runCopy = () =>
+          runCommand(pscp, ['-batch', '-P', String(port), '-pw', password, ...keyArg, '-r', chatDir, `${remote}:/root/chat-deploy`], 300000);
+      } else {
+        const askpass = makeAskpass(password);
+        const env = sshEnv(askpass);
+        const sshExe = resolveBin('ssh');
+        const scpExe = resolveBin('scp');
+        const common = [
+          '-o', 'StrictHostKeyChecking=accept-new',
+          '-o', 'UserKnownHostsFile=' + join(askpass.dir, 'known_hosts'),
+          '-p', String(port),
+          remote,
+        ];
+        runRemote = (cmd) => runCommand(sshExe, [...common, cmd], 300000, env);
+        runCopy = () => runCommand(scpExe, [...common, '-r', chatDir, `${remote}:/root/chat-deploy`], 300000, env);
+        logText += '1) 使用 OpenSSH（首次连接自动信任主机指纹）\n\n';
       }
 
-      logText += '1) 获取服务器主机指纹…\n';
-      const fp = await ensureHostKey(host, port, user);
-      logText += fp ? `   指纹 ${fp}\n\n` : '   没拿到指纹，继续（可能失败）\n\n';
-      const keyArg = fp ? ['-hostkey', fp] : [];
-
       logText += '2) 清理旧目录…\n';
-      const step1 = await runCommand(
-        plink,
-        ['-batch', '-P', String(port), '-l', user, '-pw', password, ...keyArg, host, 'rm -rf /root/chat-deploy'],
-        60000
-      );
+      const step1 = await runRemote('rm -rf /root/chat-deploy');
       logText += (step1.out || '') + '\n';
       if (step1.code !== 0) {
-        return { ok: false, message: 'SSH 登录失败：检查 IP / 端口 / 用户名 / 密码是否正确，以及服务器是否放行该端口', log: logText };
+        return {
+          ok: false,
+          message: 'SSH 登录失败：检查 IP / 端口 / 用户名 / 密码，以及服务器防火墙是否放行该端口',
+          log: logText,
+        };
       }
 
       logText += '3) 上传 chat/ 目录…\n';
-      const step2 = await runCommand(
-        pscp,
-        ['-batch', '-P', String(port), '-pw', password, ...keyArg, '-r', chatDir, `${remote}:/root/chat-deploy`],
-        300000
-      );
+      const step2 = await runCopy();
       logText += (step2.out || '') + '\n';
-      if (step2.code !== 0) {
-        return { ok: false, message: '上传失败', log: logText };
-      }
+      if (step2.code !== 0) return { ok: false, message: '上传失败', log: logText };
 
-      logText += `4) 执行安装脚本（域名 ${domain}）…\n`;
-      const step3 = await runCommand(
-        plink,
-        ['-batch', '-P', String(port), '-l', user, '-pw', password, ...keyArg, host,
-          `bash /root/chat-deploy/install_chat.sh ${addr}`],
-        300000
-      );
+      logText += `4) 执行安装脚本（地址 ${addr}）…\n`;
+      const step3 = await runRemote(`bash /root/chat-deploy/install_chat.sh ${addr}`);
       logText += (step3.out || '') + '\n';
+      if (tempDir) {
+        try { rmSync(tempDir, { recursive: true, force: true }); } catch {}
+      }
       return {
         ok: step3.code === 0,
         message: step3.code === 0 ? '部署完成：' + addr : '安装脚本返回失败，看下面日志',
         log: logText,
       };
     }
-
     // ---------- SSH 配置模式（本机已配好密钥）----------
     const cfgPath = runtimeSettings.sshConfigPath || 'D:\\DSH\\work\\.ssh\\config';
     const target = runtimeSettings.sshTarget || 'vps';
