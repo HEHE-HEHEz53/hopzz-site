@@ -30,3 +30,4 @@ plugin/dsh-web-relay/cordis.patch.yml
 plugin/dsh-web-relay/settings.json
 plugin/dsh-web-relay/boot.json
 plugin/dsh-web-relay/*.local.json
+plugin/_pack/
