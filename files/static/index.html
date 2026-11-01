@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
+  <meta name="theme-color" content="#0a2e58">
+  <meta name="color-scheme" content="dark">
+  <title>鲸鱼娘网盘</title>
+  <link rel="icon" href="icon.png" type="image/png">
+  <link rel="apple-touch-icon" href="icon.png">
+  <link rel="stylesheet" href="app.css?v=1">
+</head>
+<body>
+  <noscript><p class="noscript">请开启 JavaScript 后使用。</p></noscript>
+
+  <!-- ===== 1. 密码页 ===== -->
+  <section class="screen login-screen" id="loginView">
+    <form class="login-card" id="loginForm" novalidate>
+      <div class="login-mark" aria-hidden="true">
+        <img class="login-avatar" src="avatar.jpg" alt="鲸鱼娘头像">
+      </div>
+      <h1 class="login-title">鲸鱼娘网盘</h1>
+      <p class="login-sub">手机上的鲸鱼娘网盘</p>
+      <label class="sr-only" for="password">密码</label>
+      <input class="text-input" id="password" name="password" type="password" placeholder="输入密码"
+             autocomplete="current-password" autocapitalize="off" autocorrect="off" spellcheck="false"
+             enterkeyhint="go" required>
+      <p class="form-error" id="loginError" role="alert" hidden></p>
+      <button class="primary-btn" id="loginBtn" type="submit">进入</button>
+    </form>
+  </section>
+
+  <!-- ===== 2. 两个大选项 ===== -->
+  <section class="screen home-screen" id="homeView" hidden>
+    <header class="home-head">
+      <img class="brand-avatar" src="avatar.jpg" alt="">
+      <span class="brand-name">鲸鱼娘网盘</span>
+    </header>
+    <div class="choice-list">
+      <button class="choice-card" id="quickEntry" type="button">
+        <span class="choice-icon" aria-hidden="true">⚡</span>
+        <span class="choice-title">快速上传</span>
+        <span class="choice-desc">文件直接扔上来，回头再整理</span>
+      </button>
+      <button class="choice-card" id="filesEntry" type="button">
+        <span class="choice-icon" aria-hidden="true">📁</span>
+        <span class="choice-title">进入网盘</span>
+        <span class="choice-desc">浏览、下载、整理文件</span>
+      </button>
+    </div>
+    <button class="logout-btn" id="homeLogout" type="button">退出</button>
+  </section>
+
+  <!-- ===== 3A. 快速上传 ===== -->
+  <section class="screen quick-screen" id="quickView" hidden>
+    <header class="subbar">
+      <button class="back-btn" id="quickBack" type="button">← 返回</button>
+      <span class="subbar-title">快速上传</span>
+    </header>
+    <main class="quick-main">
+      <div class="drop-zone" id="dropZone" role="button" tabindex="0" aria-label="点这里选文件，或把文件拖进来">
+        <span class="drop-icon" aria-hidden="true">⚡</span>
+        <span class="drop-title">点这里选文件</span>
+        <span class="drop-desc">把文件拖进来</span>
+        <input id="quickInput" type="file" multiple hidden>
+      </div>
+      <div class="upload-list" id="uploadList"></div>
+      <p class="quick-summary" id="quickSummary" role="status" hidden></p>
+      <div class="quick-done" id="quickDone" hidden>
+        <p class="quick-done-text">已存到「快速上传」文件夹，可以进网盘整理</p>
+        <div class="quick-done-actions">
+          <button class="ghost-btn" id="quickAgain" type="button">继续上传</button>
+          <button class="primary-btn small" id="quickToFiles" type="button">去网盘</button>
+        </div>
+      </div>
+    </main>
+  </section>
+
+  <!-- ===== 3B. 网盘 ===== -->
+  <section class="screen files-screen" id="filesView" hidden>
+    <header class="files-bar">
+      <div class="files-bar-row">
+        <button class="back-btn" id="filesBack" type="button">← 返回选项</button>
+        <div class="files-actions">
+          <button class="ghost-btn small" id="uploadBtn" type="button">上传文件</button>
+          <button class="ghost-btn small" id="mkdirBtn" type="button">新建文件夹</button>
+          <button class="icon-btn" id="settingsBtn" type="button" aria-label="设置" title="设置">⚙</button>
+        </div>
+      </div>
+      <nav class="breadcrumb" id="breadcrumb" aria-label="当前路径"></nav>
+    </header>
+    <main class="files-main">
+      <div class="entry-list" id="entryList"></div>
+      <p class="empty-state" id="emptyDir" hidden>这个文件夹是空的</p>
+      <p class="loading-state" id="filesLoading" hidden>正在加载…</p>
+    </main>
+    <footer class="files-footer">
+      <span id="totalLine">共 0 项</span>
+    </footer>
+    <input id="fileInput" type="file" multiple hidden>
+    <div class="upload-status" id="uploadStatus" hidden>
+      <span class="upload-status-text" id="uploadStatusText">上传中…</span>
+      <span class="upload-status-bar"><span id="uploadStatusBar"></span></span>
+    </div>
+  </section>
+
+  <!-- ===== 新建文件夹 ===== -->
+  <div class="modal-overlay" id="mkdirModal" hidden>
+    <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="mkdirTitle">
+      <h2 class="modal-title" id="mkdirTitle">新建文件夹</h2>
+      <form class="modal-form" id="mkdirForm" novalidate>
+        <label class="sr-only" for="mkdirInput">文件夹名称</label>
+        <input class="text-input" id="mkdirInput" type="text" placeholder="文件夹名称"
+               autocomplete="off" maxlength="120">
+        <p class="form-error" id="mkdirError" role="alert" hidden></p>
+        <div class="modal-actions">
+          <button class="ghost-btn" id="mkdirCancel" type="button">取消</button>
+          <button class="primary-btn small" id="mkdirCreate" type="submit">创建</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ===== 移动到 ===== -->
+  <div class="modal-overlay" id="moveModal" hidden>
+    <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="moveTitle">
+      <h2 class="modal-title" id="moveTitle">移动</h2>
+      <p class="modal-sub" id="moveSub"></p>
+      <div class="move-list" id="moveList"></div>
+      <p class="form-error" id="moveError" role="alert" hidden></p>
+      <div class="modal-actions">
+        <button class="ghost-btn" id="moveCancel" type="button">取消</button>
+        <button class="primary-btn small" id="moveConfirm" type="button" disabled>移动到这里</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== 删除确认 ===== -->
+  <div class="modal-overlay" id="confirmModal" hidden>
+    <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="confirmTitle">
+      <h2 class="modal-title" id="confirmTitle">删除？</h2>
+      <p class="modal-sub" id="confirmMessage"></p>
+      <div class="modal-actions">
+        <button class="ghost-btn" id="confirmCancel" type="button">取消</button>
+        <button class="danger-btn" id="confirmOk" type="button">删除</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== 设置（改密码，仅网盘模式） ===== -->
+  <div class="modal-overlay" id="settingsModal" hidden>
+    <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
+      <div class="modal-head">
+        <h2 class="modal-title" id="settingsTitle">设置</h2>
+        <button class="icon-btn modal-close" id="settingsClose" type="button" aria-label="关闭设置">×</button>
+      </div>
+      <p class="modal-sub">修改登录密码</p>
+      <form class="modal-form" id="passwordForm" novalidate>
+        <label class="field">
+          <span class="field-label">原密码</span>
+          <input class="text-input" id="oldPassword" type="password" placeholder="原密码"
+                 autocomplete="current-password" required>
+        </label>
+        <label class="field">
+          <span class="field-label">新密码</span>
+          <input class="text-input" id="newPassword" type="password" placeholder="至少 6 位"
+                 autocomplete="new-password" required>
+        </label>
+        <label class="field">
+          <span class="field-label">确认新密码</span>
+          <input class="text-input" id="confirmPassword" type="password" placeholder="再输入一次"
+                 autocomplete="new-password" required>
+        </label>
+        <p class="form-error" id="passwordError" role="alert" hidden></p>
+        <p class="form-success" id="passwordSuccess" role="status" hidden>密码已修改</p>
+        <div class="modal-actions">
+          <button class="ghost-btn" id="passwordCancel" type="button">取消</button>
+          <button class="primary-btn small" id="passwordSubmit" type="submit">保存</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="toast-host" id="toastHost" role="status" aria-live="polite"></div>
+
+  <script src="app.js?v=1"></script>
+</body>
+</html>

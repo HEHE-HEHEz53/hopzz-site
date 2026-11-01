@@ -10,6 +10,7 @@
 | --- | --- |
 | **https://hopzz.top** | 你的个人主页（不是 `http://`，已自动跳转） |
 | **https://www.hopzz.top** | 同上，www 也能访问 |
+| **https://f.hopzz.top** | 📦 **鲸鱼娘网盘** —— 密码保护的快速上传 / 网盘（见 `files/README.md`） |
 | **https://ai.hopzz.top** | 📱 **手机聊天页** —— 在手机上跟 DSH 对话（要密码，见 `chat/README.md`） |
 | **https://hopzz.top/api/docs** | 后端接口的交互式文档（可以在网页上直接点"Try it out"测试） |
 | **https://hopzz.top/api/status** | 服务器实时负载的 JSON |
