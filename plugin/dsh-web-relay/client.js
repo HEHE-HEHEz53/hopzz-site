@@ -443,6 +443,17 @@ window.__ModuleLoader__.load({
         }
       }, [reconnect, sshConfig, sshTarget, host, port, user, password, domain, props]);
 
+      const clearPwd = useCallback(async () => {
+        setMsg(null);
+        try {
+          await call('/general', { method: 'POST', body: JSON.stringify({ clearDeployPassword: true }) });
+          setMsg({ ok: true, text: '已清除保存的密码' });
+          props.onChanged && props.onChanged();
+        } catch (err) {
+          setMsg({ ok: false, text: String(err.message || err) });
+        }
+      }, [props]);
+
       const field = (label, value, onChange, placeholder, type) =>
         h(
           'div',
@@ -468,6 +479,25 @@ window.__ModuleLoader__.load({
         field('端口', port, setPort, ''),
         field('用户名', user, setUser, ''),
         field('密码', password, setPassword, '', 'password'),
+        h(
+          'div',
+          { style: { ...styles.row, justifyContent: 'flex-start', gap: '10px', marginTop: '-6px' } },
+          h(
+            'span',
+            { style: styles.hint },
+            st.hasDeployPassword ? '✓ 密码已保存（留空则继续使用）' : '尚未保存密码'
+          ),
+          st.hasDeployPassword
+            ? h(
+                'span',
+                {
+                  style: { ...styles.hint, textDecoration: 'underline', cursor: 'pointer' },
+                  onClick: clearPwd,
+                },
+                '清除密码'
+              )
+            : null
+        ),
         field('域名', domain, setDomain, ''),
 
         h('p', { style: { ...styles.hint, marginTop: '6px' } }, '高级：本机已配好 SSH 密钥的话，也可以走配置文件'),

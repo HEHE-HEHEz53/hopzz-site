@@ -69,6 +69,12 @@ if ! python3 -c 'import ensurepip' >/dev/null 2>&1; then
   apt-get -y install python3-venv python3-pip >/dev/null 2>&1 || true
 fi
 
+# venv 存在但不可用（没有 pip / ensurepip）也要重建
+if [[ -x "$APP/venv/bin/python" ]] && ! "$APP/venv/bin/python" -m pip --version >/dev/null 2>&1; then
+  echo "现有的 venv 不可用（缺 pip），重建中…"
+  rm -rf "$APP/venv"
+fi
+
 if [[ ! -x "$APP/venv/bin/python" ]]; then
   if ! python3 -m venv "$APP/venv" >/dev/null 2>&1; then
     echo "venv 创建失败，改用系统 Python 兼容模式"
@@ -78,6 +84,16 @@ if [[ ! -x "$APP/venv/bin/python" ]]; then
     ln -sf "$(command -v python3)" "$APP/venv/bin/python3"
     PIPFLAGS="--break-system-packages"
   fi
+fi
+
+# 补齐 pip（有些环境 venv 建出来不自带 pip）
+if ! "$APP/venv/bin/python" -m pip --version >/dev/null 2>&1; then
+  "$APP/venv/bin/python" -m ensurepip --upgrade >/dev/null 2>&1 || true
+fi
+if ! "$APP/venv/bin/python" -m pip --version >/dev/null 2>&1; then
+  echo "pip 仍不可用，改用系统 pip（--break-system-packages）"
+  apt-get -y install python3-pip >/dev/null 2>&1 || true
+  PIPFLAGS="--break-system-packages"
 fi
 
 if [[ -x "$APP/venv/bin/pip" ]]; then

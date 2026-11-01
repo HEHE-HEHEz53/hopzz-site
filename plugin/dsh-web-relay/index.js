@@ -28,7 +28,7 @@ export const name = 'web-relay';
 // 否则插件启动太早，ctx.get('webServer') 拿到 undefined，设置面板接口就全 404。
 export const inject = ['webServer'];
 
-const VERSION = '2.9.6';
+const VERSION = '2.9.7';
 const TAG = `[web-relay@${VERSION}]`;
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -535,6 +535,7 @@ export function apply(ctx, config = {}) {
           patch.deployPort = Number.isFinite(p) && p > 0 && p < 65536 ? p : 22;
         }
         if (typeof body.deployUser === 'string' && body.deployUser.trim()) patch.deployUser = body.deployUser.trim();
+        if (body.clearDeployPassword === true) patch.deployPassword = '';
         if (typeof body.deployPassword === 'string' && body.deployPassword !== '') patch.deployPassword = body.deployPassword;
         if (typeof body.deployDomain === 'string') patch.deployDomain = body.deployDomain.trim();
         if (typeof body.plinkPath === 'string' && body.plinkPath.trim()) patch.plinkPath = body.plinkPath.trim();
