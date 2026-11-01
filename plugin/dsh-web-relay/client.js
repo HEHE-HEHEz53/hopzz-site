@@ -400,6 +400,11 @@ window.__ModuleLoader__.load({
       const [reconnect, setReconnect] = useState(String(st.maxReconnectMs || 30000));
       const [sshConfig, setSshConfig] = useState('');
       const [sshTarget, setSshTarget] = useState('');
+      const [host, setHost] = useState('');
+      const [port, setPort] = useState('22');
+      const [user, setUser] = useState('root');
+      const [password, setPassword] = useState('');
+      const [domain, setDomain] = useState('');
       const [saving, setSaving] = useState(false);
       const [msg, setMsg] = useState(null);
 
@@ -407,20 +412,28 @@ window.__ModuleLoader__.load({
         setReconnect(String(st.maxReconnectMs || 30000));
         setSshConfig(st.sshConfigPath || '');
         setSshTarget(st.sshTarget || '');
-      }, [st.maxReconnectMs, st.sshConfigPath, st.sshTarget]);
+        setHost(st.deployHost || '');
+        setPort(String(st.deployPort || 22));
+        setUser(st.deployUser || 'root');
+        setDomain(st.deployDomain || '');
+      }, [st.maxReconnectMs, st.sshConfigPath, st.sshTarget, st.deployHost, st.deployPort, st.deployUser, st.deployDomain]);
 
       const save = useCallback(async () => {
         setSaving(true);
         setMsg(null);
         try {
-          await call('/general', {
-            method: 'POST',
-            body: JSON.stringify({
-              maxReconnectMs: Number(reconnect) || 30000,
-              sshConfigPath: sshConfig.trim(),
-              sshTarget: sshTarget.trim(),
-            }),
-          });
+          const body = {
+            maxReconnectMs: Number(reconnect) || 30000,
+            sshConfigPath: sshConfig.trim(),
+            sshTarget: sshTarget.trim(),
+            deployHost: host.trim(),
+            deployPort: Number(port) || 22,
+            deployUser: user.trim() || 'root',
+            deployDomain: domain.trim(),
+          };
+          if (password) body.deployPassword = password;
+          await call('/general', { method: 'POST', body: JSON.stringify(body) });
+          setPassword('');
           setMsg({ ok: true, text: '已保存' });
           props.onChanged && props.onChanged();
         } catch (err) {
@@ -428,48 +441,39 @@ window.__ModuleLoader__.load({
         } finally {
           setSaving(false);
         }
-      }, [reconnect, sshConfig, sshTarget, props]);
+      }, [reconnect, sshConfig, sshTarget, host, port, user, password, domain, props]);
+
+      const field = (label, value, onChange, placeholder, type) =>
+        h(
+          'div',
+          { style: styles.row },
+          h('span', { style: styles.label }, label),
+          h('input', {
+            style: styles.input,
+            type: type || 'text',
+            value: value,
+            placeholder: placeholder,
+            spellCheck: false,
+            onChange: (e) => onChange(e.target.value),
+          })
+        );
 
       return h(
         'div',
         { style: styles.card },
         h('h3', { style: styles.title }, '常规设置'),
-        h(
-          'div',
-          { style: styles.row },
-          h('span', { style: styles.label }, '断线重连'),
-          h('input', {
-            style: styles.input,
-            value: reconnect,
-            inputMode: 'numeric',
-            onChange: (e) => setReconnect(e.target.value),
-          }),
-          h('span', { style: styles.hint }, '毫秒（默认 30000）')
-        ),
-        h(
-          'div',
-          { style: styles.row },
-          h('span', { style: styles.label }, 'SSH 配置'),
-          h('input', {
-            style: styles.input,
-            value: sshConfig,
-            placeholder: 'D:\\DSH\\work\\.ssh\\config',
-            spellCheck: false,
-            onChange: (e) => setSshConfig(e.target.value),
-          })
-        ),
-        h(
-          'div',
-          { style: styles.row },
-          h('span', { style: styles.label }, 'SSH 主机'),
-          h('input', {
-            style: styles.input,
-            value: sshTarget,
-            placeholder: 'vps',
-            spellCheck: false,
-            onChange: (e) => setSshTarget(e.target.value),
-          })
-        ),
+
+        h('p', { style: styles.hint }, '部署用的服务器信息（填了 IP + root 密码，一键部署就不用依赖本机 SSH 配置）'),
+        field('服务器 IP', host, setHost, '64.83.20.24'),
+        field('端口', port, setPort, '22'),
+        field('用户名', user, setUser, 'root'),
+        field('密码', password, setPassword, st.hasDeployPassword ? '已保存，留空则不修改' : 'root 密码', 'password'),
+        field('域名', domain, setDomain, 'ai.hopzz.top（要解析到这台服务器）'),
+
+        h('p', { style: { ...styles.hint, marginTop: '6px' } }, '高级：本机已配好 SSH 密钥的话，也可以走配置文件'),
+        field('SSH 配置', sshConfig, setSshConfig, 'D:\\DSH\\work\\.ssh\\config'),
+        field('SSH 主机', sshTarget, setSshTarget, 'vps'),
+
         h(
           'div',
           { style: styles.row },
@@ -483,6 +487,14 @@ window.__ModuleLoader__.load({
             },
             saving ? '保存中…' : '保存'
           ),
+          h('span', { style: styles.hint }, '断线重连 '),
+          h('input', {
+            style: { ...styles.input, flex: '0 0 100px', minWidth: '90px' },
+            value: reconnect,
+            inputMode: 'numeric',
+            onChange: (e) => setReconnect(e.target.value),
+          }),
+          h('span', { style: styles.hint }, '毫秒'),
           msg
             ? h(
                 'span',
@@ -493,7 +505,6 @@ window.__ModuleLoader__.load({
         )
       );
     }
-
     function SettingsSection() {
       const [status, setStatus] = useState(null);
       const [error, setError] = useState(null);
