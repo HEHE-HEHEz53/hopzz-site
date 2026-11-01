@@ -2825,3 +2825,21 @@ html[data-theme="light"] .plugin-diagnostic {
     scroll-behavior: auto !important;
   }
 }
+/* 关于本站：外链 */
+.about-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin: 10px 0 6px;
+}
+.about-link {
+  color: var(--ice, #7fd4e8);
+  text-decoration: none;
+  font-size: 13px;
+  border-bottom: 1px dashed rgba(127, 212, 232, 0.45);
+  padding-bottom: 1px;
+}
+.about-link:hover {
+  color: #a8e6f5;
+  border-bottom-color: #a8e6f5;
+}
