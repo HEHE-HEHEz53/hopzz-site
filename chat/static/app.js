@@ -10,6 +10,7 @@
   /* ================= 常量 ================= */
   var STORAGE_THEME = 'chat.theme';
   var STORAGE_SESSION = 'lastSessionId';
+  var WEB_VERSION = 11;
   var BOTTOM_THRESHOLD = 80;  var MAX_RETRY_DELAY = 10000;
   var MAX_INPUT_LINES = 5;
   var MOBILE_QUERY = '(max-width: 767px)';
@@ -115,6 +116,7 @@
   var pluginList = document.getElementById('pluginList');
   var pluginEmpty = document.getElementById('pluginEmpty');
   var aboutVersion = document.getElementById('aboutVersion');
+  var webVersion = document.getElementById('webVersion');
 
   var settingsBackBtn = document.getElementById('settingsBack');
   var settingsBreadcrumb = document.getElementById('settingsBreadcrumb');
@@ -643,6 +645,16 @@
         };
       }
 
+      var permissionValue = '';
+      var permissionKnown = false;
+      if (typeof s.permissions === 'string') {
+        permissionValue = s.permissions;
+        permissionKnown = true;
+      } else if (typeof s.permissionMode === 'string') {
+        permissionValue = s.permissionMode;
+        permissionKnown = true;
+      }
+
       out.push({
         id: id,
         title: typeof s.title === 'string' ? s.title : '',
@@ -654,7 +666,9 @@
         running: s.running === true,
         blank: s.blank === true,
         preset: typeof s.preset === 'string' ? s.preset : '',
-        permissions: typeof s.permissions === 'string' ? s.permissions : '',
+        permissions: permissionValue,
+        permissionMode: typeof s.permissionMode === 'string' ? s.permissionMode : '',
+        permissionKnown: permissionKnown,
         model: model,
         agentAvailable: s.agentAvailable !== false
       });
@@ -764,6 +778,16 @@
       }
     }
     return presetId;
+  }
+
+  function presetChineseHint(presetId, presetName) {
+    var text = ((presetId || '') + ' ' + (presetName || '')).toLowerCase();
+    if (/default|standard/.test(text)) return '标准模式：平衡速度与质量';
+    if (/deep|think|reason/.test(text)) return '深度思考：回答更仔细，速度慢一些';
+    if (/fast|quick|lite/.test(text)) return '快速模式：回答快，适合简单问题';
+    if (/code|dev/.test(text)) return '编程模式：偏向写代码和改代码';
+    if (/plan/.test(text)) return '规划模式：先列方案再动手';
+    return '';
   }
 
   function currentSessionModel() {
@@ -1541,6 +1565,106 @@
     section.appendChild(note);
   }
 
+  /* ================= 权限 / 插件名展示 ================= */
+  var PERMISSION_OPTIONS = [
+    {
+      key: 'ask',
+      label: '询问我',
+      sub: 'ask / default · 每次操作前确认',
+      values: ['ask', 'default']
+    },
+    {
+      key: 'auto',
+      label: '自动允许',
+      sub: 'auto / acceptEdits · 文件修改不再询问',
+      values: ['auto', 'acceptedits']
+    },
+    {
+      key: 'bypass',
+      label: '全部允许',
+      sub: 'bypass / yolo · 跳过所有确认，谨慎',
+      values: ['bypass', 'yolo']
+    }
+  ];
+
+  function permissionOptionFor(value) {
+    var normalized = String(value || '').toLowerCase();
+    for (var i = 0; i < PERMISSION_OPTIONS.length; i++) {
+      if (PERMISSION_OPTIONS[i].values.indexOf(normalized) >= 0) return PERMISSION_OPTIONS[i];
+    }
+    return null;
+  }
+
+  function permissionDisplay(value) {
+    var option = permissionOptionFor(value);
+    return option ? option.label : (String(value || '') || '未知');
+  }
+
+  function createPermissionOptions(currentValue) {
+    var group = document.createElement('div');
+    group.className = 'permission-options';
+    group.setAttribute('role', 'group');
+    group.setAttribute('aria-label', '权限模式');
+
+    var active = permissionOptionFor(currentValue);
+
+    for (var i = 0; i < PERMISSION_OPTIONS.length; i++) {
+      (function (option) {
+        var button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'permission-option' +
+          (active && active.key === option.key ? ' is-active' : '');
+        button.setAttribute('aria-pressed',
+          active && active.key === option.key ? 'true' : 'false');
+
+        var name = document.createElement('span');
+        name.className = 'permission-option-name';
+        name.textContent = option.label;
+
+        var sub = document.createElement('span');
+        sub.className = 'permission-option-sub';
+        sub.textContent = option.sub;
+
+        button.appendChild(name);
+        button.appendChild(sub);
+        button.addEventListener('click', function () {
+          showToast('权限修改需要在电脑端 DSH 里操作');
+        });
+        group.appendChild(button);
+      })(PERMISSION_OPTIONS[i]);
+    }
+
+    return group;
+  }
+
+  function fillPluginDisplayName(container, bundleName) {
+    var name = typeof bundleName === 'string' ? bundleName : '';
+    container.setAttribute('title', name);
+
+    if (name === '@local/dsh-web-relay') {
+      container.textContent = '鲸鱼娘在线';
+      return container;
+    }
+
+    var slash = name.indexOf('/');
+    if (name.charAt(0) === '@' && slash > 0) {
+      var scope = document.createElement('span');
+      scope.className = 'plugin-scope';
+      scope.textContent = name.slice(0, slash + 1);
+
+      var base = document.createElement('span');
+      base.className = 'plugin-base';
+      base.textContent = name.slice(slash + 1);
+
+      container.appendChild(scope);
+      container.appendChild(base);
+      return container;
+    }
+
+    container.textContent = name;
+    return container;
+  }
+
   /* ================= 运行时操作：模型 / 模式 / 插件 ================= */
   function setLocalBundleEnabled(name, enabled) {
     if (!state.snapshot || !state.snapshot.info || !Array.isArray(state.snapshot.info.bundles)) return;
@@ -1852,6 +1976,7 @@
 
   function updateAboutVersion() {
     if (aboutVersion) aboutVersion.textContent = currentRelayVersion() || '未知';
+    if (webVersion) webVersion.textContent = String(WEB_VERSION);
   }
 
   /* ================= 信息面板渲染 ================= */
@@ -1929,7 +2054,8 @@
           var busy = state.presetBusy && state.presetBusyKey === presetData.id;
           var item = createActionItem(
             presetData.name || presetData.id,
-            presetData.description || presetData.id,
+            presetChineseHint(presetData.id, presetData.name) ||
+              presetData.description || presetData.id,
             function () { onPresetSelect(presetData.id); },
             {
               current: isCurrent,
@@ -1945,10 +2071,26 @@
     }
     infoBody.appendChild(presetSection);
 
-    /* 3. 权限（只读） */
+    /* 3. 权限（当前值 + 中文选项） */
     var permissionSection = createInfoSection('权限');
+    var permissionValue = session
+      ? (session.permissions || session.permissionMode || '')
+      : '';
+    var permissionKnown = session ? session.permissionKnown === true : false;
+
     permissionSection.appendChild(createCurrentBox('当前权限',
-      session ? (session.permissions || '未知') : '未选择会话'));
+      session
+        ? (permissionKnown ? permissionDisplay(permissionValue) : (permissionValue || '未知'))
+        : '未选择会话'));
+
+    if (permissionKnown) {
+      permissionSection.appendChild(createPermissionOptions(permissionValue));
+    } else {
+      var permissionNote = document.createElement('p');
+      permissionNote.className = 'permission-note';
+      permissionNote.textContent = '后端未提供可选项';
+      permissionSection.appendChild(permissionNote);
+    }
     infoBody.appendChild(permissionSection);
 
     /* 4. 插件（可开关） */
@@ -1973,7 +2115,13 @@
           nameRow.className = 'bundle-name-row';
           var name = document.createElement('span');
           name.className = 'info-item-name';
-          name.textContent = bundle.name + (bundle.version ? '@' + bundle.version : '');
+          fillPluginDisplayName(name, bundle.name);
+          if (bundle.version) {
+            var version = document.createElement('span');
+            version.className = 'plugin-version';
+            version.textContent = '@' + bundle.version;
+            name.appendChild(version);
+          }
           nameRow.appendChild(name);
           if (isRelay) {
             var pageBadge = createBadge('本页面', false);
@@ -2607,8 +2755,7 @@
 
         var name = document.createElement('span');
         name.className = 'plugin-name';
-        name.textContent = bundle.name;
-        name.setAttribute('title', bundle.name);
+        fillPluginDisplayName(name, bundle.name);
         nameRow.appendChild(name);
 
         if (isRelay) {

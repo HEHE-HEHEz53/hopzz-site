@@ -28,7 +28,7 @@ export const name = 'web-relay';
 // 否则插件启动太早，ctx.get('webServer') 拿到 undefined，设置面板接口就全 404。
 export const inject = ['webServer'];
 
-const VERSION = '2.9.9';
+const VERSION = '2.10.0';
 const TAG = `[web-relay@${VERSION}]`;
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -279,7 +279,7 @@ export function apply(ctx, config = {}) {
         const fetched = await fetchSourceBundle();
         chatDir = fetched.dir;
         tempDir = fetched.temp;
-        sourceNote = '源码来源：在线下载\n';
+        sourceNote = '源码来源：在线下载（' + (fetched.source || '') + '\n';
       } catch (err) {
         return {
           ok: false,

@@ -1569,6 +1569,63 @@ html[data-theme="dark"] .tool-tag {
   color: var(--text-faint);
 }
 
+/* 权限选项 */
+.permission-options {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.permission-option {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  width: 100%;
+  padding: 9px 11px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.16s ease, border-color 0.16s ease;
+}
+
+.permission-option:hover {
+  background: var(--surface-2);
+  border-color: var(--border-strong);
+}
+
+.permission-option.is-active {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.permission-option-name {
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
+.permission-option-sub {
+  font-size: 10.5px;
+  line-height: 1.5;
+  color: var(--text-faint);
+}
+
+.permission-option.is-active .permission-option-sub {
+  color: var(--text-dim);
+}
+
+.permission-note {
+  margin: 8px 2px 0;
+  font-size: 11.5px;
+  line-height: 1.6;
+  color: var(--text-faint);
+}
+
 .bundle-item.is-disabled .info-item-name {
   color: var(--text-faint);
 }
@@ -2250,6 +2307,13 @@ html[data-theme="light"] .switch {
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 }
 
+.about-hint {
+  margin: 0;
+  font-size: 11.5px;
+  line-height: 1.6;
+  color: var(--text-faint);
+}
+
 .about-copy {
   margin: 2px 0 0;
   font-size: 11.5px;
@@ -2510,12 +2574,26 @@ html[data-theme="light"] .plugin-diagnostic {
 
 .plugin-name {
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  font-size: 12.5px;
+  font-size: 13px;
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+
+.plugin-scope {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 10.5px;
+  color: var(--text-faint);
+}
+
+.plugin-base {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 13px;
   color: var(--text);
   overflow-wrap: anywhere;
 }
 
 .plugin-version {
+  margin-left: 2px;
   font-size: 11px;
   color: var(--text-faint);
 }
