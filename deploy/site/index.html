@@ -3,9 +3,9 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <meta name="description" content="HEHE 的个人主页 —— 一些还在学的东西，和几件做出来的小事。" />
+  <meta name="description" content="Hopzz · 个人主页 —— 一些还在学的东西，和几件做出来的小事。" />
   <meta name="theme-color" content="#f7fbfc" />
-  <title>HEHE · 个人主页</title>
+  <title>Hopzz · 个人主页</title>
   <link rel="icon" href="assets/avatar.jpg" />
   <link rel="stylesheet" href="assets/style.css?v=2" />
   <script>
@@ -16,54 +16,38 @@
     } catch (err) {}
   </script>
   <noscript><style>.reveal{opacity:1;transform:none}</style></noscript>
-  <!-- 插画背景层：随页面一起滚动（不是固定的） -->
+    <!-- 插画背景层：电脑端和手机端都固定，像壁纸一样不动 -->
   <style id="artBackground">
     html {
-      background-color: var(--paper);
+      background-image: url("assets/bg-desktop.jpg");
+      background-position: center center;
+      background-size: cover;
+      background-repeat: no-repeat;
+      background-attachment: fixed;
     }
-    /*
-      背景放在 body 上：body 的高度等于整篇内容的高度，所以图片会跟着内容一起滚。
-      第一层是半透明纸色蒙版（画在图片上方），第二层才是插画。
-    */
+    /* 半透明纸色蒙版，保证文字可读 */
     body {
-      background-image:
-        linear-gradient(180deg,
-          rgba(247, 251, 252, 0.88) 0%,
-          rgba(247, 251, 252, 0.80) 38%,
-          rgba(247, 251, 252, 0.90) 100%),
-        url("assets/bg-desktop.jpg");
-      background-size: 100% 100%, auto 100vh;
-      background-position: center top, center top;
-      background-repeat: no-repeat, repeat-y;
-      background-attachment: scroll, scroll;
+      background-color: color-mix(in srgb, var(--paper) 84%, transparent);
     }
     html[data-theme="dark"] body {
-      background-image:
-        linear-gradient(180deg,
-          rgba(8, 26, 52, 0.90) 0%,
-          rgba(8, 26, 52, 0.84) 38%,
-          rgba(8, 26, 52, 0.92) 100%),
-        url("assets/bg-desktop.jpg");
+      background-color: color-mix(in srgb, var(--paper) 88%, transparent);
     }
     @media (max-width: 860px) {
+      html {
+        background-image: url("assets/bg-mobile.jpg");
+        background-position: center 24%;
+        background-attachment: fixed;
+      }
       body {
-        background-image:
-          linear-gradient(180deg,
-            rgba(247, 251, 252, 0.85) 0%,
-            rgba(247, 251, 252, 0.78) 38%,
-            rgba(247, 251, 252, 0.90) 100%),
-          url("assets/bg-mobile.jpg");
-        background-size: 100% 100%, auto 100vh;
-        background-position: center top, center top;
+        background-color: color-mix(in srgb, var(--paper) 78%, transparent);
       }
       html[data-theme="dark"] body {
-        background-image:
-          linear-gradient(180deg,
-            rgba(8, 26, 52, 0.89) 0%,
-            rgba(8, 26, 52, 0.83) 38%,
-            rgba(8, 26, 52, 0.92) 100%),
-          url("assets/bg-mobile.jpg");
+        background-color: color-mix(in srgb, var(--paper) 84%, transparent);
       }
+    }
+    /* 超宽屏让插画集中在右侧，左边留白 */
+    @media (min-width: 1600px) {
+      html { background-position: 72% center; }
     }
   </style>
 </head>
@@ -80,7 +64,7 @@
   <header class="nav" id="nav">
     <a class="brand" href="#top" aria-label="回到顶部">
       <span class="brand__mark" aria-hidden="true"></span>
-      <span class="brand__name">HEHE</span>
+      <span class="brand__name">Hopzz</span>
       <span class="brand__sub">Portfolio · 2026</span>
     </a>
 
@@ -370,7 +354,7 @@
         <div class="contact__links">
           <a class="btn btn--primary" href="mailto:hehez53@foxmail.com">hehez53@foxmail.com</a>
           <a class="btn btn--ghost" href="https://qm.qq.com/q/Woby5zUzuu" target="_blank" rel="noopener noreferrer">QQ</a>
-          <a class="btn btn--ghost" id="repoLink" href="https://git.hopzz.top/hopzz-site.git" target="_blank" rel="noopener noreferrer">代码仓库</a>
+          <a class="btn btn--ghost" id="repoLink" href="https://github.com/HEHE-HEHEz53/hopzz-site" target="_blank" rel="noopener noreferrer">GitHub 仓库</a>
         </div>
       </div>
     </section>
@@ -378,7 +362,7 @@
 
   <footer class="foot">
     <div class="foot__inner">
-      <p>© <span id="year">2026</span> HEHE · 一行一行手写的</p>
+      <p>© <span id="year">2026</span> HEHEz53 · 鲸鱼娘吃完白饭后做的网站</p>
       <p class="foot__domain">hopzz.top</p>
     </div>
   </footer>
