@@ -17,7 +17,7 @@
 
 // 不再依赖 @deepseek-ai/schemastery：插件是软链接安装，Node 从真实路径解析，找不到 DSH 内部包。
 import { readFileSync, writeFileSync, existsSync, mkdirSync, rmSync, chmodSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { tmpdir, networkInterfaces } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawn } from 'node:child_process';
@@ -28,7 +28,7 @@ export const name = 'web-relay';
 // 否则插件启动太早，ctx.get('webServer') 拿到 undefined，设置面板接口就全 404。
 export const inject = ['webServer'];
 
-const VERSION = '2.9.2';
+const VERSION = '2.9.3';
 const TAG = `[web-relay@${VERSION}]`;
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -223,6 +223,24 @@ export function apply(ctx, config = {}) {
     return name;
   }
 
+  /** 目标是不是本机（DSH 所在机器）：是的话不用 SSH，直接本机执行安装脚本 */
+  function isLocalTarget(host) {
+    const h = String(host || '').trim().toLowerCase();
+    if (!h) return false;
+    if (h === '127.0.0.1' || h === 'localhost' || h === '::1') return true;
+    try {
+      const nets = networkInterfaces();
+      for (const list of Object.values(nets)) {
+        for (const item of list || []) {
+          if (item && item.address && item.address.toLowerCase() === h) return true;
+        }
+      }
+    } catch {
+      /* 忽略 */
+    }
+    return false;
+  }
+
   /** 用 Node 自带 fetch 下载文件 */
   async function downloadFile(url, dest) {
     const res = await fetch(url);
@@ -277,6 +295,24 @@ export function apply(ctx, config = {}) {
     }
 
     let logText = sourceNote + `目标地址: ${addr}\n\n`;
+
+    // ---------- 本机部署：DSH 就跑在这台机器上，直接本地执行，不需要 SSH ----------
+    const targetHost = (runtimeSettings.deployHost || '').split(':')[0];
+    if (process.platform !== 'win32' && isLocalTarget(targetHost)) {
+      logText += '方式: 本机直装（不需要 SSH / 密码）\n\n';
+      logText += '1) 执行安装脚本…\n';
+      const scriptPath = join(chatDir, 'install_chat.sh');
+      const step = await runCommand('bash', [scriptPath, addr], 600000);
+      logText += (step.out || '') + '\n';
+      if (tempDir) {
+        try { rmSync(tempDir, { recursive: true, force: true }); } catch {}
+      }
+      return {
+        ok: step.code === 0,
+        message: step.code === 0 ? '部署完成：' + addr : '安装脚本返回失败（可能是权限问题，需要 root）',
+        log: logText,
+      };
+    }
     const usePassword = !!runtimeSettings.deployHost && !!runtimeSettings.deployPassword;
 
     if (usePassword) {
