@@ -1,37 +1,35 @@
 {
-    "name":  "@local/dsh-web-relay",
-    "version":  "2.9.1",
-    "private":  true,
-    "type":  "module",
-    "description":  "椴搁奔濞樺湪绾?鈥斺€?鎶婃墜鏈虹綉椤垫帴鍒扮數鑴戜笂鐨?DSH锛岄殢鏃堕殢鍦拌亰浣犵殑浼氳瘽",
-    "icon":  "./icon.png",
-    "exports":  {
-                    ".":  "./index.js",
-                    "./client":  "./client.js",
-                    "./locale/*.json":  "./locale/*.json",
-                    "./icon":  "./icon.png"
-                },
-    "files":  [
-                  "index.js",
-                  "client.js",
-                  "cordis.patch.yml",
-                  "locale/*.json",
-                  "icon.png",
-                  "bin/**"
-              ],
-    "dependencies":  {
-
-                     },
-    "dsh":  {
-                "bundle":  {
-                               "patch":  "./cordis.patch.yml"
-                           },
-                "client":  {
-                               "platform":  "web",
-                               "immediately":  true,
-                               "inject":  [
-                                              "@deepseek-ai/dsh-client-ui-settings"
-                                          ]
-                           }
-            }
+  "name": "@local/dsh-web-relay",
+  "version": "2.9.1",
+  "private": true,
+  "type": "module",
+  "description": "鲸鱼娘在线 —— 把手机网页接到电脑上的 DSH，随时随地聊你的会话",
+  "icon": "./icon.png",
+  "exports": {
+    ".": "./index.js",
+    "./client": "./client.js",
+    "./locale/*.json": "./locale/*.json",
+    "./icon": "./icon.png"
+  },
+  "files": [
+    "index.js",
+    "client.js",
+    "cordis.patch.yml",
+    "locale/*.json",
+    "icon.png",
+    "bin/**"
+  ],
+  "dependencies": {},
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "immediately": true,
+      "inject": [
+        "@deepseek-ai/dsh-client-ui-settings"
+      ]
+    }
+  }
 }
