@@ -2,7 +2,7 @@
 
 把 DSH 接到 `ai.hopzz.top` 的手机网页。插件在电脑上**主动外连**，家里不需要公网 IP。
 
-当前版本：**2.4.0**（带设置面板）
+当前版本：**5.0.0**（安全加固版）
 
 ---
 
@@ -106,3 +106,15 @@ D:\DSH\work\plugin\dsh-web-relay\settings.json
 | POST /web-relay/api/settings（连接字符串） | 保存成功，source 变为 connectString，仍然保持连接 |
 | settings.json | 已生成（**不入库**，含令牌） |
 | oot.json | 记录了路由注册结果，用于排错（**不入库**） |
+---
+
+## 7. 5.0.0 安全加固
+
+| 项 | 说明 |
+| --- | --- |
+| 命令注入 | 部署地址走白名单校验（域名 / IP / `[IPv6]` + 可选端口），拒绝引号、空格、`;`、`&` |
+| 本地接口越权 | `/web-relay/api/*` 仅接受 `Host` 为 `127.0.0.1` / `localhost` / `[::1]`，并校验 `Sec-Fetch-Site` |
+| 凭据落盘 | POSIX 上 `settings.json` 写入后 `chmod 600` |
+| Windows 部署 | 用 `findTool()` 在「插件自带 / 设置路径 / PATH」中定位 `plink.exe`、`pscp.exe` |
+
+详见 `CHANGELOG.md`。

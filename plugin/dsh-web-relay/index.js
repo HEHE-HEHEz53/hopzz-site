@@ -28,7 +28,7 @@ export const name = 'web-relay';
 // 否则插件启动太早，ctx.get('webServer') 拿到 undefined，设置面板接口就全 404。
 export const inject = ['webServer'];
 
-const VERSION = '2.10.0';
+const VERSION = '5.0.0';
 const TAG = `[web-relay@${VERSION}]`;
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -88,6 +88,9 @@ export function apply(ctx, config = {}) {
     runtimeSettings = { ...runtimeSettings, ...patch };
     try {
       writeFileSync(SETTINGS_FILE, JSON.stringify(runtimeSettings, null, 2), 'utf8');
+      if (process.platform !== "win32") {
+        try { chmodSync(SETTINGS_FILE, 0o600); } catch {}
+      }
     } catch (err) {
       throw new Error('写入 settings.json 失败：' + (err?.message ?? err));
     }
@@ -223,6 +226,34 @@ export function apply(ctx, config = {}) {
     return name;
   }
 
+  /** 在 PATH 里找可执行文件（跨平台） */
+  function findTool(name, extraPaths) {
+    const list = [name];
+    if (process.platform === 'win32') list.push(name + '.exe');
+    for (const p of extraPaths || []) {
+      if (p && existsSync(p)) return p;
+    }
+    for (const dir of (process.env.PATH || '').split(process.platform === 'win32' ? ';' : ':')) {
+      if (!dir) continue;
+      for (const n of list) {
+        const full = join(dir, n);
+        try {
+          if (existsSync(full)) return full;
+        } catch {
+          /* 忽略 */
+        }
+      }
+    }
+    return '';
+  }
+
+  /** 部署地址白名单校验：只允许域名 / IPv4 / IPv6 方括号 + 端口，杜绝命令注入 */
+  function isValidDeployAddr(addr) {
+    const a = String(addr || '').trim();
+    if (!a || a.length > 253) return false;
+    if (a.startsWith('-')) return false;
+    return /^(\[[0-9a-fA-F:]+\]|[A-Za-z0-9]([A-Za-z0-9.-]*[A-Za-z0-9])?)(:\d{1,5})?$/.test(a);
+  }
   /** 目标是不是本机（DSH 所在机器）：是的话不用 SSH，直接本机执行安装脚本 */
   function isLocalTarget(host) {
     const h = String(host || '').trim().toLowerCase();
@@ -313,6 +344,19 @@ export function apply(ctx, config = {}) {
         log: logText,
       };
     }
+    if (!isValidDeployAddr(addr)) {
+      return {
+        ok: false,
+        message: '访问地址不合法：只允许 域名 / IP / IP:端口（不要带引号、空格或其他符号）',
+        log: '收到: ' + addr,
+      };
+    }
+
+    const rawHost = String(runtimeSettings.deployHost || '').split(':')[0];
+    if (rawHost && !isValidDeployAddr(rawHost)) {
+      return { ok: false, message: '服务器地址不合法', log: '收到: ' + rawHost };
+    }
+
     const usePassword = !!runtimeSettings.deployHost && !!runtimeSettings.deployPassword;
 
     if (usePassword) {
@@ -322,13 +366,32 @@ export function apply(ctx, config = {}) {
       const password = runtimeSettings.deployPassword;
       const remote = `${user}@${host}`;
       // 优先用插件自带的 PuTTY（Windows 系统 ssh 不支持 SSH_ASKPASS，密码登录只能用 plink）
-      const bundledPlink = join(HERE, 'bin', 'win32', 'plink.exe');
-      const bundledPscp = join(HERE, 'bin', 'win32', 'pscp.exe');
-      const isWinPlat = process.platform === 'win32';
-      const plink = isWinPlat && existsSync(bundledPlink) ? bundledPlink : (runtimeSettings.plinkPath || 'plink');
-      const pscp = isWinPlat && existsSync(bundledPscp) ? bundledPscp : (runtimeSettings.pscpPath || 'pscp');
+      const isWinPlat = process.platform === "win32";
+      const plinkCandidates = [
+        join(HERE, "bin", "win32", "plink.exe"),
+        join(HERE, "bin", "plink.exe"),
+        runtimeSettings.plinkPath,
+      ].filter(Boolean);
+      const pscpCandidates = [
+        join(HERE, "bin", "win32", "pscp.exe"),
+        join(HERE, "bin", "pscp.exe"),
+        runtimeSettings.pscpPath,
+      ].filter(Boolean);
+      const plink = isWinPlat ? findTool("plink.exe", plinkCandidates) : "";
+      const pscp = isWinPlat ? findTool("pscp.exe", pscpCandidates) : "";
       // PuTTY 只有显式填了完整路径才用；否则一律用系统自带 OpenSSH（Win/Linux/macOS 都有）
-      const hasPutty = isWinPlat && existsSync(plink) && existsSync(pscp);
+      const hasPutty = !!(isWinPlat && plink && pscp);
+
+      if (isWinPlat && !hasPutty) {
+        logText += "方式: 密码登录（Windows）\n\n";
+        logText += "找不到 plink.exe / pscp.exe，Windows 自带 ssh 无法用密码登录。\n";
+        logText += "解决办法（任选其一）：\n";
+        logText += "  1. 用 ssh-keygen 生成密钥并上传服务器，改用「SSH 配置」模式；\n";
+        logText += "  2. 装一个 PuTTY，把 plink.exe 所在目录填到设置里的 PuTTY 路径；\n";
+        logText += "  3. 目标就是本机时改用「本机直装」（自动生效）。\n";
+        if (tempDir) { try { rmSync(tempDir, { recursive: true, force: true }); } catch {} }
+        return { ok: false, message: "Windows 缺少 plink/pscp，密码模式无法使用", log: logText };
+      }
 
       logText += `方式: 密码登录 ${remote}:${port}（${hasPutty ? 'PuTTY' : 'Windows 自带 OpenSSH'}）\n\n`;
 
@@ -489,6 +552,19 @@ export function apply(ctx, config = {}) {
 
   // ------------------------------------------------------------ 设置面板的 HTTP 接口
   async function handleRoute(req, res) {
+    const hostHeader = String((req.headers && req.headers.host) || "").split(":")[0].toLowerCase();
+    const allowedHosts = ["127.0.0.1", "localhost", "[::1]", "::1", ""];
+    if (allowedHosts.indexOf(hostHeader) === -1) {
+      res.writeHead(403, { "Content-Type": "application/json; charset=utf-8" });
+      res.end(JSON.stringify({ ok: false, error: "forbidden host" }));
+      return;
+    }
+    const fetchSite = String((req.headers && req.headers["sec-fetch-site"]) || "").toLowerCase();
+    if (fetchSite && fetchSite !== "same-origin" && fetchSite !== "none") {
+      res.writeHead(403, { "Content-Type": "application/json; charset=utf-8" });
+      res.end(JSON.stringify({ ok: false, error: "forbidden origin" }));
+      return;
+    }
     const url = new URL(req.url || '/', 'http://127.0.0.1');
     const pathname = url.pathname;
 
