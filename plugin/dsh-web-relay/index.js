@@ -28,7 +28,7 @@ export const name = 'web-relay';
 // 否则插件启动太早，ctx.get('webServer') 拿到 undefined，设置面板接口就全 404。
 export const inject = ['webServer'];
 
-const VERSION = '5.0.0';
+const VERSION = '5.0.1';
 const TAG = `[web-relay@${VERSION}]`;
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -180,15 +180,18 @@ export function apply(ctx, config = {}) {
   }
 
   /** 用 plink 的报错信息拿到主机指纹（第一次连接时用） */
-  async function ensureHostKey(host, port, user) {
-    const plink = runtimeSettings.plinkPath || 'plink.exe';
+  /** 用 plink 探测主机指纹（plink 在 -batch 下会打印指纹后放弃连接，正好用它） */
+  async function ensureHostKey(plinkPath, host, port, user) {
+    if (!plinkPath) return "";
     const probe = await runCommand(
-      plink,
-      ['-batch', '-P', String(port), '-l', user || 'root', '-pw', 'precheck', host, 'echo ok'],
+      plinkPath,
+      ["-batch", "-P", String(port), "-l", user || "root", "-pw", "precheck", host, "echo ok"],
       30000
     );
-    const matched = /SHA256:[A-Za-z0-9+/=]+/.exec(probe.out || '');
-    return matched ? matched[0] : '';
+    const text = probe.out || "";
+    // 形如: SHA256:wCHU...Mg3o  也兼容 ssh-ed25519 2048 SHA256:xxx 这种整行
+    const m = /SHA256:[A-Za-z0-9+/=]+/.exec(text);
+    return m ? m[0] : "";
   }
 
   /** 生成 SSH_ASKPASS 帮助脚本，用 Windows 自带 OpenSSH 做密码登录（不需要 PuTTY） */
@@ -400,9 +403,16 @@ export function apply(ctx, config = {}) {
 
       if (hasPutty) {
         logText += '1) 获取服务器主机指纹…\n';
-        const fp = await ensureHostKey(host, port, user);
-        logText += fp ? `   指纹 ${fp}\n\n` : '   没拿到指纹，继续\n\n';
-        const keyArg = fp ? ['-hostkey', fp] : [];
+        const fp = await ensureHostKey(plink, host, port, user);
+          if (!fp) {
+            logText += "   拿不到主机指纹，无法在批处理模式下继续。\n";
+            logText += "   请先在命令行手动执行一次下面这条命令（会询问是否信任主机，输入 y 回车）：\n";
+            logText += '     "' + plink + '" -P ' + port + ' -l ' + user + ' ' + host + ' exit\n';
+            if (tempDir) { try { rmSync(tempDir, { recursive: true, force: true }); } catch {} }
+            return { ok: false, message: "拿不到服务器主机指纹，请先手动信任一次主机密钥", log: logText };
+          }
+          logText += "   指纹 " + fp + "\n\n";
+          const keyArg = ["-hostkey", fp];
         runRemote = (cmd) =>
           runCommand(plink, ['-batch', '-P', String(port), '-l', user, '-pw', password, ...keyArg, host, cmd], 300000);
         runCopy = () =>
