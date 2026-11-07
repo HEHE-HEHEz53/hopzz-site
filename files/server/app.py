@@ -788,6 +788,9 @@ def share_suffix_taken(slug: str) -> bool:
 
 @app.get("/gx/{slug}")
 def share_page(slug: str) -> Any:
+    # 分享后缀不允许带点，带点的永远是静态资源请求，别返回落地页
+    if "." in slug:
+        raise HTTPException(status_code=404, detail="Not Found")
     page = STATIC_DIR / "share.html"
     if not page.exists():
         return JSONResponse({"ok": False, "error": "分享页未安装"}, status_code=500)
@@ -796,6 +799,8 @@ def share_page(slug: str) -> Any:
 
 @app.get("/s/{slug}")
 def share_page_legacy(slug: str) -> Any:
+    if "." in slug:
+        raise HTTPException(status_code=404, detail="Not Found")
     page = STATIC_DIR / "share.html"
     if not page.exists():
         return JSONResponse({"ok": False, "error": "分享页未安装"}, status_code=500)
@@ -969,7 +974,6 @@ def api_share_info(request: Request, token: str = "") -> Any:
         return JSONResponse({"ok": False, "error": "分享的内容已被删除"}, status_code=410)
     return {
         "ok": True,
-        "name": row["name"],
         "needs_code": True,
         "unlocked": share_unlocked(request, token),
     }

@@ -13,7 +13,6 @@
   var errorView = document.getElementById('shareErrorView');
   var errorText = document.getElementById('shareErrorText');
   var codeForm = document.getElementById('shareCodeForm');
-  var nameEl = document.getElementById('shareName');
   var codeInput = document.getElementById('shareCodeInput');
   var codeError = document.getElementById('shareCodeError');
   var codeBtn = document.getElementById('shareCodeBtn');
@@ -118,7 +117,6 @@
     errorView.hidden = true;
     browser.hidden = true;
     codeForm.hidden = false;
-    nameEl.textContent = state.name || '分享';
     codeInput.value = '';
     setCodeError('');
     codeBtn.disabled = false;
@@ -133,7 +131,7 @@
     errorView.hidden = true;
     codeForm.hidden = true;
     browser.hidden = false;
-    browserName.textContent = state.name || '分享';
+    browserName.textContent = state.name || 'HEHE网盘';
   }
 
   /* ---------------- 接口 ---------------- */
@@ -172,8 +170,6 @@
         showError((info.data && info.data.error) || '分享不存在或已被取消');
         return;
       }
-      state.name = info.data.name || '';
-      document.title = (state.name ? state.name + ' · ' : '') + 'HEHE网盘';
       if (info.data.unlocked) {
         showBrowser();
         await loadEntries('/');
@@ -204,6 +200,8 @@
     try {
       var result = await apiPost('/api/share/verify', { token: TOKEN, code: code });
       if (result.res.ok && result.data && result.data.ok === true) {
+        state.name = result.data.name ? String(result.data.name) : '';
+        document.title = (state.name ? state.name + ' · ' : '') + 'HEHE网盘';
         showBrowser();
         await loadEntries('/');
         return;
@@ -254,6 +252,11 @@
       }
       state.path = normalizePath(result.data.path || target);
       state.entries = Array.isArray(result.data.entries) ? result.data.entries : [];
+      if (result.data.name) {
+        state.name = String(result.data.name);
+        browserName.textContent = state.name;
+        document.title = state.name + ' · HEHE网盘';
+      }
       renderBreadcrumb();
       renderEntries();
     } catch (err) {
