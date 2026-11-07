@@ -1179,3 +1179,238 @@ svg {
     transition-duration: 0.001ms !important;
   }
 }
+
+/* ---------- 分享 ---------- */
+.modal-card.modal-wide {
+  max-width: 560px;
+}
+
+.modal-hint {
+  margin: 0 0 12px;
+  font-size: 13px;
+  line-height: 1.65;
+  color: var(--text-faint);
+}
+
+.copy-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.copy-row .text-input {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.entry-row.is-share .entry-icon {
+  box-shadow: 0 0 0 2px var(--accent-soft);
+}
+
+.entry-badge {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  line-height: 1.6;
+  color: var(--accent);
+  background: var(--accent-soft);
+  border: 1px solid rgba(127, 216, 240, 0.35);
+  vertical-align: middle;
+}
+
+.share-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-height: 46vh;
+  overflow: auto;
+  margin: 4px 0 12px;
+}
+
+.share-item {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--panel);
+}
+
+.share-item.is-revoked {
+  opacity: 0.62;
+}
+
+.share-item-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.share-item-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 15px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.share-status {
+  flex: 0 0 auto;
+  padding: 1px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  line-height: 1.6;
+  border: 1px solid var(--border-strong);
+  color: var(--text-dim);
+}
+
+.share-status.is-on {
+  color: var(--ok);
+  border-color: rgba(159, 230, 207, 0.4);
+  background: rgba(159, 230, 207, 0.1);
+}
+
+.share-status.is-off {
+  color: var(--danger);
+  border-color: rgba(238, 154, 134, 0.4);
+  background: var(--danger-soft);
+}
+
+.share-link {
+  font-size: 12px;
+  color: var(--ice-pale);
+  word-break: break-all;
+}
+
+.share-meta {
+  font-size: 12px;
+  color: var(--text-faint);
+}
+
+.share-item-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 2px;
+}
+
+/* ---------- 分享落地页 ---------- */
+.share-page {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-height: var(--app-height, 100vh);
+  padding: 24px 16px 40px;
+}
+
+.share-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.share-main {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  width: 100%;
+  max-width: 720px;
+  margin: 0 auto;
+}
+
+.share-name {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 600;
+  word-break: break-all;
+}
+
+.share-sub {
+  margin: 0;
+  font-size: 13px;
+  color: var(--text-faint);
+}
+
+.share-loading,
+.share-error-text {
+  padding: 32px 0;
+  font-size: 14px;
+  color: var(--text-dim);
+  text-align: center;
+}
+
+.share-code-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+  max-width: 360px;
+  margin: 8vh auto 0;
+}
+
+.share-browser {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.share-browser-head {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.share-download-hint {
+  margin: 0;
+  font-size: 12px;
+  color: var(--text-faint);
+  text-align: center;
+}
+
+/* ---------- 链接后缀 & 图片预览 ---------- */
+.suffix-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.suffix-prefix {
+  flex: 0 0 auto;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12px;
+  color: var(--text-faint);
+}
+
+.suffix-row .text-input {
+  flex: 1 1 130px;
+  min-width: 0;
+}
+
+.preview-card {
+  max-width: 720px;
+}
+
+.preview-body {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 120px;
+  margin: 4px 0 12px;
+  border-radius: var(--radius-sm);
+  background: rgba(0, 0, 0, 0.28);
+  overflow: hidden;
+}
+
+.preview-body img {
+  display: block;
+  max-width: 100%;
+  max-height: 62vh;
+  object-fit: contain;
+}

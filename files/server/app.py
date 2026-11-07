@@ -14,6 +14,7 @@ from __future__ import annotations
 import hashlib
 import hmac
 import os
+import re
 import shutil
 import secrets
 import sqlite3
@@ -41,7 +42,31 @@ MAX_ATTEMPTS = int(os.getenv("MAX_ATTEMPTS", "5"))
 LOCK_SECONDS = int(os.getenv("LOCK_SECONDS", "600"))
 MIN_PASSWORD_LEN = 6
 QUICK_DIR = "快速上传"
+SHARE_DIR = "共享"                 # 网盘根目录下的「共享」专用文件夹
+SHARE_ROOT = ROOT / SHARE_DIR
+SHARE_MIN_CODE_LEN = 4
+SHARE_MAX_CODE_LEN = 32
+SHARE_COOKIE_PREFIX = "hf_share_"
+SHARE_SESSION_AGE = 7 * 24 * 3600
+MAX_SHARE_ATTEMPTS = 6
+SHARE_LOCK_SECONDS = 60
+COOKIE_SECURE = os.getenv("COOKIE_SECURE", "1") not in ("0", "false", "False", "no")
+SHARE_BASE_URL = os.getenv("SHARE_BASE_URL", "https://yun.hopzz.top").rstrip("/")
+SHARE_PATH_PREFIX = "gx"           # 分享链接形如 https://yun.hopzz.top/gx/<后缀>
+SHARE_SUFFIX_RE = re.compile(r"^[A-Za-z0-9_-]{1,40}$")
 CHUNK = 1024 * 1024
+
+IMAGE_TYPES = {
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".png": "image/png",
+    ".gif": "image/gif",
+    ".webp": "image/webp",
+    ".bmp": "image/bmp",
+    ".svg": "image/svg+xml",
+    ".ico": "image/x-icon",
+    ".avif": "image/avif",
+}
 
 if not INITIAL_PASSWORD or not COOKIE_SECRET:
     raise RuntimeError("必须设置 FILE_PASSWORD / COOKIE_SECRET")
@@ -51,6 +76,17 @@ SCHEMA = """
 CREATE TABLE IF NOT EXISTS meta (
     key   TEXT PRIMARY KEY,
     value TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS shares (
+    token        TEXT PRIMARY KEY,
+    code_hash    TEXT NOT NULL,
+    name         TEXT NOT NULL,
+    rel          TEXT NOT NULL,
+    source_rel   TEXT NOT NULL DEFAULT '',
+    created_at   INTEGER NOT NULL,
+    last_access  INTEGER,
+    hits         INTEGER NOT NULL DEFAULT 0,
+    revoked      INTEGER NOT NULL DEFAULT 0
 );
 """
 
@@ -135,6 +171,7 @@ def init_db() -> None:
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
     ROOT.mkdir(parents=True, exist_ok=True)
     (ROOT / QUICK_DIR).mkdir(exist_ok=True)
+    SHARE_ROOT.mkdir(exist_ok=True)
     with closing(db()) as conn:
         conn.executescript(SCHEMA)
         if not meta_get(conn, "pwd_hash"):
@@ -177,7 +214,7 @@ def set_login_cookie(resp: JSONResponse) -> None:
         value=sign_session(expires, current_pwd_version()),
         max_age=COOKIE_MAX_AGE,
         httponly=True,
-        secure=True,
+        secure=COOKIE_SECURE,
         samesite="lax",
         path="/",
     )
@@ -216,7 +253,7 @@ def set_netdisk_cookie(resp: JSONResponse) -> None:
         value=sign_netdisk(expires, current_pwd_version()),
         max_age=COOKIE_MAX_AGE,
         httponly=True,
-        secure=True,
+        secure=COOKIE_SECURE,
         samesite="lax",
         path="/",
     )
@@ -413,7 +450,20 @@ def api_list(request: Request, path: str = "/") -> Any:
                 )
 
     entries.sort(key=lambda e: (0 if e["type"] == "dir" else 1, e["name"].lower()))
-    return {"ok": True, "path": norm_rel(path), "entries": entries}
+
+    rel = norm_rel(path)
+    if target == ROOT:
+        for entry in entries:
+            if entry["type"] == "dir" and entry["name"] == SHARE_DIR:
+                entry["special"] = "share"
+    elif target == SHARE_ROOT:
+        active = share_tokens_by_rel()
+        for entry in entries:
+            token = active.get(rel_of(target / entry["name"]))
+            if token:
+                entry["share_token"] = token
+
+    return {"ok": True, "path": rel, "entries": entries}
 
 
 @app.get("/api/folders")
@@ -421,7 +471,11 @@ def api_folders(request: Request) -> Any:
     require_auth(request)
     folders = ["/"]
     for dirpath, dirnames, _ in os.walk(ROOT):
-        dirnames[:] = sorted(d for d in dirnames if not d.startswith("."))
+        dirnames[:] = sorted(
+            d for d in dirnames
+            if not d.startswith(".")
+            and not (Path(dirpath) == ROOT and d == SHARE_DIR)
+        )
         for name in dirnames:
             full = Path(dirpath) / name
             folders.append(rel_of(full))
@@ -456,8 +510,12 @@ async def api_move(request: Request) -> Any:
         raise HTTPException(status_code=404, detail="源不存在")
     if src == ROOT:
         raise HTTPException(status_code=400, detail="不能移动根目录")
+    if src == SHARE_ROOT:
+        raise HTTPException(status_code=400, detail="「共享」文件夹不能移动")
     if not dst_dir.is_dir():
         raise HTTPException(status_code=400, detail="目标不是文件夹")
+    if in_share_root(dst_dir) or dst_dir == SHARE_ROOT:
+        raise HTTPException(status_code=400, detail="不能移动进「共享」文件夹")
     if dst_dir == src or str(dst_dir).startswith(str(src) + os.sep):
         raise HTTPException(status_code=400, detail="不能移动到自身里面")
     if src.parent == dst_dir:
@@ -473,6 +531,8 @@ def api_delete(request: Request, path: str) -> Any:
     target = abs_path(path)
     if target == ROOT:
         raise HTTPException(status_code=400, detail="不能删除根目录")
+    if target == SHARE_ROOT:
+        raise HTTPException(status_code=400, detail="「共享」文件夹不能删除")
     if not target.exists():
         raise HTTPException(status_code=404, detail="不存在")
     if target.is_dir():
@@ -492,6 +552,35 @@ def api_download(request: Request, path: str) -> Any:
         path=str(target),
         filename=target.name,
         media_type="application/octet-stream",
+    )
+
+
+def image_media(path: Path) -> Optional[str]:
+    return IMAGE_TYPES.get(path.suffix.lower())
+
+
+PREVIEW_HEADERS = {
+    "Cache-Control": "private, max-age=60",
+    "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'",
+}
+
+
+@app.get("/api/preview")
+def api_preview(request: Request, path: str) -> Any:
+    """图片预览：浏览器内直接显示，不触发下载"""
+    require_auth(request)
+    target = abs_path(path)
+    if not target.is_file():
+        raise HTTPException(status_code=404, detail="文件不存在")
+    media = image_media(target)
+    if not media:
+        raise HTTPException(status_code=400, detail="不是图片")
+    return FileResponse(
+        path=str(target),
+        media_type=media,
+        filename=target.name,
+        content_disposition_type="inline",
+        headers=dict(PREVIEW_HEADERS),
     )
 
 
@@ -547,6 +636,488 @@ async def api_quick_upload(
 @app.get("/api/health")
 def health() -> Any:
     return {"ok": True, "service": "hopzz-files"}
+
+
+# ---------------------------------------------------------------- 分享
+_share_fails: dict[str, tuple[int, float]] = {}
+
+
+def in_share_root(path: Path) -> bool:
+    base = str(SHARE_ROOT)
+    return str(path) == base or str(path).startswith(base + os.sep)
+
+
+def share_tokens_by_rel() -> dict[str, str]:
+    """共享文件夹里的相对路径 -> 未取消的分享 token"""
+    result: dict[str, str] = {}
+    with closing(db()) as conn:
+        rows = conn.execute("SELECT token, rel FROM shares WHERE revoked=0").fetchall()
+    for row in rows:
+        result[str(row["rel"])] = str(row["token"])
+    return result
+
+
+def get_share(token: str) -> Optional[sqlite3.Row]:
+    with closing(db()) as conn:
+        return conn.execute("SELECT * FROM shares WHERE token=?", (token,)).fetchone()
+
+
+def share_cookie_name(token: str) -> str:
+    return SHARE_COOKIE_PREFIX + token
+
+
+def sign_share(token: str, expires: int) -> str:
+    payload = f"share:{token}:{expires}"
+    mac = hmac.new(COOKIE_SECRET.encode(), payload.encode(), hashlib.sha256).hexdigest()
+    return f"{expires}.{mac}"
+
+
+def share_unlocked(request: Request, token: str) -> bool:
+    value = request.cookies.get(share_cookie_name(token))
+    if not value or value.count(".") != 1:
+        return False
+    head, mac = value.split(".")
+    try:
+        expires = int(head)
+    except ValueError:
+        return False
+    if expires < int(time.time()):
+        return False
+    expected = hmac.new(
+        COOKIE_SECRET.encode(), f"share:{token}:{expires}".encode(), hashlib.sha256
+    ).hexdigest()
+    return hmac.compare_digest(expected, mac)
+
+
+def share_lock_remaining(token: str) -> int:
+    _, until = _share_fails.get(token, (0, 0.0))
+    remaining = int(until - time.time())
+    return remaining if remaining > 0 else 0
+
+
+def share_register_failure(token: str) -> tuple[int, int]:
+    count, until = _share_fails.get(token, (0, 0.0))
+    if until and until <= time.time():
+        count = 0
+    count += 1
+    if count >= MAX_SHARE_ATTEMPTS:
+        _share_fails[token] = (0, time.time() + SHARE_LOCK_SECONDS)
+        return 0, SHARE_LOCK_SECONDS
+    _share_fails[token] = (count, 0.0)
+    return MAX_SHARE_ATTEMPTS - count, 0
+
+
+def share_clear_failures(token: str) -> None:
+    _share_fails.pop(token, None)
+
+
+def share_root_path(token: str) -> Optional[Path]:
+    """分享对应的真实路径；已取消或文件被删就返回 None"""
+    row = get_share(token)
+    if row is None or row["revoked"]:
+        return None
+    rel = str(row["rel"])
+    if rel != "/" + SHARE_DIR and not rel.startswith("/" + SHARE_DIR + "/"):
+        return None
+    try:
+        target = abs_path(rel)
+    except HTTPException:
+        return None
+    return target if target.exists() else None
+
+
+def share_target(token: str, sub: str) -> Path:
+    root = share_root_path(token)
+    if root is None:
+        raise HTTPException(status_code=410, detail="分享已失效")
+    base = root if root.is_dir() else root.parent
+    target = (base / norm_rel(sub).lstrip("/")).resolve()
+    base_s = str(base)
+    if target != base and not str(target).startswith(base_s + os.sep):
+        raise HTTPException(status_code=400, detail="越界路径")
+    return target
+
+
+def share_entries(target: Path) -> list[dict[str, Any]]:
+    entries: list[dict[str, Any]] = []
+    with os.scandir(target) as it:
+        for entry in it:
+            if entry.name.startswith("."):
+                continue
+            try:
+                stat = entry.stat()
+            except OSError:
+                continue
+            if entry.is_dir():
+                entries.append({"name": entry.name, "type": "dir"})
+            else:
+                entries.append(
+                    {
+                        "name": entry.name,
+                        "type": "file",
+                        "size": stat.st_size,
+                        "mtime": int(stat.st_mtime),
+                    }
+                )
+    entries.sort(key=lambda e: (0 if e["type"] == "dir" else 1, e["name"].lower()))
+    return entries
+
+
+def bump_share_hits(token: str) -> None:
+    with closing(db()) as conn:
+        conn.execute(
+            "UPDATE shares SET hits=hits+1, last_access=? WHERE token=?",
+            (int(time.time()), token),
+        )
+        conn.commit()
+
+
+def share_link(slug: str) -> str:
+    return f"{SHARE_BASE_URL}/{SHARE_PATH_PREFIX}/{slug}"
+
+
+def new_share_slug() -> str:
+    return secrets.token_urlsafe(6).replace("-", "").replace("_", "")[:8]
+
+
+def share_suffix_taken(slug: str) -> bool:
+    with closing(db()) as conn:
+        row = conn.execute("SELECT 1 FROM shares WHERE token=?", (slug,)).fetchone()
+    return row is not None
+
+
+@app.get("/gx/{slug}")
+def share_page(slug: str) -> Any:
+    page = STATIC_DIR / "share.html"
+    if not page.exists():
+        return JSONResponse({"ok": False, "error": "分享页未安装"}, status_code=500)
+    return FileResponse(page, media_type="text/html; charset=utf-8")
+
+
+@app.get("/s/{slug}")
+def share_page_legacy(slug: str) -> Any:
+    page = STATIC_DIR / "share.html"
+    if not page.exists():
+        return JSONResponse({"ok": False, "error": "分享页未安装"}, status_code=500)
+    return FileResponse(page, media_type="text/html; charset=utf-8")
+
+
+@app.post("/api/share/create")
+async def api_share_create(request: Request) -> Any:
+    """把选中的文件夹（或文件）复制到「共享」文件夹，并生成链接 + 共享码"""
+    require_auth(request)
+    if not has_netdisk(request):
+        return JSONResponse(
+            {"ok": False, "error": "只有进入网盘后才能分享"}, status_code=403
+        )
+    try:
+        body = await request.json()
+    except Exception:
+        return JSONResponse({"ok": False, "error": "请求格式错误"}, status_code=400)
+
+    code = str(body.get("code", ""))
+    if not (SHARE_MIN_CODE_LEN <= len(code) <= SHARE_MAX_CODE_LEN):
+        return JSONResponse(
+            {
+                "ok": False,
+                "error": f"共享码需要 {SHARE_MIN_CODE_LEN}～{SHARE_MAX_CODE_LEN} 位",
+            },
+            status_code=400,
+        )
+
+    suffix = str(body.get("suffix", "") or "").strip()
+    if suffix:
+        if not SHARE_SUFFIX_RE.match(suffix):
+            return JSONResponse(
+                {"ok": False, "error": "后缀只能用字母、数字、- 或 _，长度 1～40"},
+                status_code=400,
+            )
+        if share_suffix_taken(suffix):
+            return JSONResponse(
+                {"ok": False, "error": "这个后缀已经被占用了，换一个"}, status_code=400
+            )
+    else:
+        suffix = new_share_slug()
+        for _ in range(5):
+            if not share_suffix_taken(suffix):
+                break
+            suffix = new_share_slug()
+
+    src_rel = norm_rel(str(body.get("path", "")))
+    if src_rel == "/":
+        return JSONResponse({"ok": False, "error": "不能分享根目录"}, status_code=400)
+    src = abs_path(src_rel)
+    if not src.exists():
+        return JSONResponse({"ok": False, "error": "要分享的内容不存在"}, status_code=404)
+    if in_share_root(src):
+        return JSONResponse(
+            {"ok": False, "error": "「共享」文件夹里的内容不能再分享"}, status_code=400
+        )
+
+    SHARE_ROOT.mkdir(exist_ok=True)
+    dest = unique_path(SHARE_ROOT / src.name)
+    try:
+        if src.is_dir():
+            shutil.copytree(src, dest)
+        else:
+            shutil.copy2(src, dest)
+    except OSError as exc:
+        return JSONResponse(
+            {"ok": False, "error": f"复制到「共享」文件夹失败：{exc.strerror or exc}"},
+            status_code=500,
+        )
+
+    slug = suffix
+    rel = rel_of(dest)
+    with closing(db()) as conn:
+        conn.execute(
+            "INSERT INTO shares(token, code_hash, name, rel, source_rel, created_at, hits, revoked) "
+            "VALUES(?,?,?,?,?,?,0,0)",
+            (slug, hash_password(code), src.name, rel, src_rel, int(time.time())),
+        )
+        conn.commit()
+    print(f"[files] 已创建分享 {slug} -> {rel}", flush=True)
+
+    return {
+        "ok": True,
+        "token": slug,
+        "slug": slug,
+        "name": src.name,
+        "path": rel,
+        "link": share_link(slug),
+    }
+
+
+@app.get("/api/share/list")
+def api_share_list(request: Request) -> Any:
+    require_auth(request)
+    with closing(db()) as conn:
+        rows = conn.execute("SELECT * FROM shares ORDER BY created_at DESC").fetchall()
+    items = []
+    for row in rows:
+        rel = str(row["rel"])
+        exists = False
+        try:
+            exists = abs_path(rel).exists()
+        except HTTPException:
+            exists = False
+        items.append(
+            {
+                "token": row["token"],
+                "name": row["name"],
+                "path": rel,
+                "source": row["source_rel"],
+                "created_at": row["created_at"],
+                "last_access": row["last_access"],
+                "hits": row["hits"],
+                "revoked": bool(row["revoked"]),
+                "missing": not exists,
+                "link": share_link(str(row["token"])),
+            }
+        )
+    return {"ok": True, "items": items}
+
+
+@app.post("/api/share/revoke")
+async def api_share_revoke(request: Request) -> Any:
+    """取消链接；可选一并删除「共享」文件夹里的副本"""
+    require_auth(request)
+    if not has_netdisk(request):
+        return JSONResponse(
+            {"ok": False, "error": "只有进入网盘后才能取消分享"}, status_code=403
+        )
+    try:
+        body = await request.json()
+    except Exception:
+        return JSONResponse({"ok": False, "error": "请求格式错误"}, status_code=400)
+
+    token = str(body.get("token", ""))
+    row = get_share(token)
+    if row is None:
+        return JSONResponse({"ok": False, "error": "分享不存在"}, status_code=404)
+
+    with closing(db()) as conn:
+        conn.execute("UPDATE shares SET revoked=1 WHERE token=?", (token,))
+        conn.commit()
+    _share_fails.pop(token, None)
+
+    if bool(body.get("delete_files")):
+        rel = str(row["rel"])
+        if rel == "/" + SHARE_DIR or rel.startswith("/" + SHARE_DIR + "/"):
+            try:
+                target = abs_path(rel)
+                if target != SHARE_ROOT and target.exists():
+                    if target.is_dir():
+                        shutil.rmtree(target)
+                    else:
+                        target.unlink()
+            except (OSError, HTTPException):
+                pass
+
+    return {"ok": True}
+
+
+@app.get("/api/share/info")
+def api_share_info(request: Request, token: str = "") -> Any:
+    """链接落地页用：是否有效、要不要共享码、当前是否已解锁"""
+    row = get_share(token)
+    if row is None or row["revoked"]:
+        return JSONResponse(
+            {"ok": False, "error": "分享不存在或已被取消"}, status_code=404
+        )
+    if share_root_path(token) is None:
+        return JSONResponse({"ok": False, "error": "分享的内容已被删除"}, status_code=410)
+    return {
+        "ok": True,
+        "name": row["name"],
+        "needs_code": True,
+        "unlocked": share_unlocked(request, token),
+    }
+
+
+@app.post("/api/share/verify")
+async def api_share_verify(request: Request) -> Any:
+    try:
+        body = await request.json()
+    except Exception:
+        return JSONResponse({"ok": False, "error": "请求格式错误"}, status_code=400)
+
+    token = str(body.get("token", ""))
+    code = str(body.get("code", ""))
+    row = get_share(token)
+    if row is None or row["revoked"]:
+        return JSONResponse(
+            {"ok": False, "error": "分享不存在或已被取消"}, status_code=404
+        )
+    if share_root_path(token) is None:
+        return JSONResponse({"ok": False, "error": "分享的内容已被删除"}, status_code=410)
+
+    locked = share_lock_remaining(token)
+    if locked > 0:
+        return JSONResponse(
+            {"ok": False, "error": "尝试次数过多，请稍后再试", "retry_after": locked},
+            status_code=429,
+        )
+
+    if not verify_password(code, str(row["code_hash"])):
+        remaining, lock = share_register_failure(token)
+        if lock > 0:
+            return JSONResponse(
+                {"ok": False, "error": "尝试次数过多，请稍后再试", "retry_after": lock},
+                status_code=429,
+            )
+        return JSONResponse(
+            {"ok": False, "error": "共享码不对", "remaining": remaining}, status_code=401
+        )
+
+    share_clear_failures(token)
+    bump_share_hits(token)
+    expires = int(time.time()) + SHARE_SESSION_AGE
+    resp = JSONResponse({"ok": True, "name": row["name"]})
+    resp.set_cookie(
+        key=share_cookie_name(token),
+        value=sign_share(token, expires),
+        max_age=SHARE_SESSION_AGE,
+        httponly=True,
+        secure=COOKIE_SECURE,
+        samesite="lax",
+        path="/",
+    )
+    return resp
+
+
+@app.get("/api/share/entries")
+def api_share_entries(request: Request, token: str = "", path: str = "/") -> Any:
+    row = get_share(token)
+    if row is None or row["revoked"]:
+        return JSONResponse(
+            {"ok": False, "error": "分享不存在或已被取消"}, status_code=404
+        )
+    if not share_unlocked(request, token):
+        return JSONResponse(
+            {"ok": False, "error": "需要共享码", "needs_code": True}, status_code=403
+        )
+    root = share_root_path(token)
+    if root is None:
+        return JSONResponse({"ok": False, "error": "分享的内容已被删除"}, status_code=410)
+
+    if root.is_file():
+        stat = root.stat()
+        return {
+            "ok": True,
+            "name": row["name"],
+            "path": "/",
+            "entries": [
+                {
+                    "name": root.name,
+                    "type": "file",
+                    "size": stat.st_size,
+                    "mtime": int(stat.st_mtime),
+                }
+            ],
+        }
+
+    target = share_target(token, path)
+    if not target.is_dir():
+        return JSONResponse({"ok": False, "error": "不是文件夹"}, status_code=400)
+    return {
+        "ok": True,
+        "name": row["name"],
+        "path": norm_rel(path),
+        "entries": share_entries(target),
+    }
+
+
+@app.get("/api/share/download")
+def api_share_download(request: Request, token: str = "", path: str = "") -> Any:
+    row = get_share(token)
+    if row is None or row["revoked"]:
+        return JSONResponse(
+            {"ok": False, "error": "分享不存在或已被取消"}, status_code=404
+        )
+    if not share_unlocked(request, token):
+        return JSONResponse({"ok": False, "error": "需要共享码"}, status_code=403)
+    root = share_root_path(token)
+    if root is None:
+        return JSONResponse({"ok": False, "error": "分享的内容已被删除"}, status_code=410)
+
+    target = root if root.is_file() else share_target(token, path)
+    if not target.is_file():
+        raise HTTPException(status_code=404, detail="文件不存在")
+    bump_share_hits(token)
+    return FileResponse(
+        path=str(target),
+        filename=target.name,
+        media_type="application/octet-stream",
+    )
+
+
+@app.get("/api/share/preview")
+def api_share_preview(request: Request, token: str = "", path: str = "") -> Any:
+    row = get_share(token)
+    if row is None or row["revoked"]:
+        return JSONResponse(
+            {"ok": False, "error": "分享不存在或已被取消"}, status_code=404
+        )
+    if not share_unlocked(request, token):
+        return JSONResponse({"ok": False, "error": "需要共享码"}, status_code=403)
+    root = share_root_path(token)
+    if root is None:
+        return JSONResponse({"ok": False, "error": "分享的内容已被删除"}, status_code=410)
+
+    target = root if root.is_file() else share_target(token, path)
+    if not target.is_file():
+        raise HTTPException(status_code=404, detail="文件不存在")
+    media = image_media(target)
+    if not media:
+        raise HTTPException(status_code=400, detail="不是图片")
+    return FileResponse(
+        path=str(target),
+        media_type=media,
+        filename=target.name,
+        content_disposition_type="inline",
+        headers=dict(PREVIEW_HEADERS),
+    )
 
 
 # ---------------------------------------------------------------- 静态页

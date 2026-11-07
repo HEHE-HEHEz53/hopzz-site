@@ -8,7 +8,7 @@
   <title>鲸鱼娘网盘</title>
   <link rel="icon" href="icon.png" type="image/png">
   <link rel="apple-touch-icon" href="icon.png">
-  <link rel="stylesheet" href="app.css?v=1">
+  <link rel="stylesheet" href="app.css?v=3">
 </head>
 <body>
   <noscript><p class="noscript">请开启 JavaScript 后使用。</p></noscript>
@@ -84,6 +84,7 @@
         <div class="files-actions">
           <button class="ghost-btn small" id="uploadBtn" type="button">上传文件</button>
           <button class="ghost-btn small" id="mkdirBtn" type="button">新建文件夹</button>
+          <button class="ghost-btn small" id="sharesBtn" type="button">共享管理</button>
           <button class="icon-btn" id="settingsBtn" type="button" aria-label="设置" title="设置">⚙</button>
         </div>
       </div>
@@ -147,6 +148,91 @@
     </div>
   </div>
 
+  <!-- ===== 创建分享 ===== -->
+  <div class="modal-overlay" id="shareModal" hidden>
+    <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="shareTitle">
+      <div class="modal-head">
+        <h2 class="modal-title" id="shareTitle">分享</h2>
+        <button class="icon-btn modal-close" id="shareClose" type="button" aria-label="关闭分享">×</button>
+      </div>
+      <p class="modal-sub" id="shareSub"></p>
+      <p class="modal-hint">会在「共享」文件夹里复制一份，原文件夹不会被改动。生成后把链接和共享码一起发给对方。</p>
+      <form class="modal-form" id="shareForm" novalidate>
+        <label class="field">
+          <span class="field-label">链接后缀（可选）</span>
+          <div class="suffix-row">
+            <span class="suffix-prefix">yun.hopzz.top/gx/</span>
+            <input class="text-input" id="shareSuffix" type="text" placeholder="留空自动生成"
+                   autocomplete="off" autocapitalize="off" spellcheck="false" maxlength="40">
+          </div>
+        </label>
+        <label class="field">
+          <span class="field-label">共享码</span>
+          <input class="text-input" id="shareCode" type="text" placeholder="至少 4 位，对方打开链接时要输入"
+                 autocomplete="off" autocapitalize="off" spellcheck="false" maxlength="32">
+        </label>
+        <p class="form-error" id="shareError" role="alert" hidden></p>
+        <div class="modal-actions">
+          <button class="ghost-btn" id="shareCancel" type="button">取消</button>
+          <button class="primary-btn small" id="shareSubmit" type="submit">生成链接</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ===== 分享链接已生成 ===== -->
+  <div class="modal-overlay" id="shareResultModal" hidden>
+    <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="shareResultTitle">
+      <div class="modal-head">
+        <h2 class="modal-title" id="shareResultTitle">链接已生成</h2>
+        <button class="icon-btn modal-close" id="shareResultClose" type="button" aria-label="关闭">×</button>
+      </div>
+      <p class="modal-sub" id="shareResultSub"></p>
+      <div class="field">
+        <span class="field-label">分享链接</span>
+        <div class="copy-row">
+          <input class="text-input" id="shareLinkInput" type="text" readonly>
+          <button class="ghost-btn small" id="shareCopyBtn" type="button">复制</button>
+        </div>
+      </div>
+      <p class="modal-hint" id="shareCodeHint"></p>
+      <div class="modal-actions">
+        <button class="primary-btn small" id="shareResultDone" type="button">完成</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== 共享管理 ===== -->
+  <div class="modal-overlay" id="sharesModal" hidden>
+    <div class="modal-card modal-wide" role="dialog" aria-modal="true" aria-labelledby="sharesTitle">
+      <div class="modal-head">
+        <h2 class="modal-title" id="sharesTitle">共享管理</h2>
+        <button class="icon-btn modal-close" id="sharesClose" type="button" aria-label="关闭共享管理">×</button>
+      </div>
+      <p class="modal-sub">取消链接后对方手里的链接立刻失效；「共享」文件夹里的副本可以留着，也可以一起删掉。</p>
+      <div class="share-list" id="shareList"></div>
+      <p class="empty-state" id="shareListEmpty" hidden>还没有分享过东西</p>
+      <p class="form-error" id="sharesError" role="alert" hidden></p>
+    </div>
+  </div>
+
+  <!-- ===== 图片预览 ===== -->
+  <div class="modal-overlay" id="previewModal" hidden>
+    <div class="modal-card preview-card" role="dialog" aria-modal="true" aria-labelledby="previewTitle">
+      <div class="modal-head">
+        <h2 class="modal-title" id="previewTitle">预览</h2>
+        <button class="icon-btn modal-close" id="previewClose" type="button" aria-label="关闭预览">×</button>
+      </div>
+      <div class="preview-body">
+        <img id="previewImg" alt="">
+      </div>
+      <div class="modal-actions">
+        <button class="ghost-btn" id="previewDownload" type="button">下载原图</button>
+        <button class="primary-btn small" id="previewDone" type="button">关闭</button>
+      </div>
+    </div>
+  </div>
+
   <!-- ===== 设置（改密码，仅网盘模式） ===== -->
   <div class="modal-overlay" id="settingsModal" hidden>
     <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
@@ -183,6 +269,6 @@
 
   <div class="toast-host" id="toastHost" role="status" aria-live="polite"></div>
 
-  <script src="app.js?v=1"></script>
+  <script src="app.js?v=3"></script>
 </body>
 </html>

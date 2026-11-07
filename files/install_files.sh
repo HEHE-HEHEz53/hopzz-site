@@ -6,6 +6,7 @@
 set -euo pipefail
 
 DOMAIN="f.hopzz.top"
+SHARE_DOMAIN="yun.hopzz.top"
 SRC="/root/files-deploy"
 ROOT_DIR="/srv/files"
 APP="/opt/hopzz-files"
@@ -86,10 +87,38 @@ rm -f /etc/nginx/sites-available/f.hopzz.top.http.conf
 nginx -t
 systemctl reload nginx
 
+step "7b. 分享域名（$SHARE_DOMAIN）"
+if [ ! -d "/etc/letsencrypt/live/$SHARE_DOMAIN" ]; then
+  cat > "/etc/nginx/sites-available/$SHARE_DOMAIN.http.conf" <<EOF
+server {
+    listen 80;
+    listen [::]:80;
+    server_name $SHARE_DOMAIN;
+    location /.well-known/acme-challenge/ { root $ACME; }
+    location / { return 200 'ok'; add_header Content-Type text/plain; }
+}
+EOF
+  ln -sf "/etc/nginx/sites-available/$SHARE_DOMAIN.http.conf" "/etc/nginx/sites-enabled/$SHARE_DOMAIN.conf"
+  nginx -t && systemctl reload nginx
+  certbot certonly --webroot -w "$ACME" -d "$SHARE_DOMAIN" \
+    --non-interactive --agree-tos --register-unsafely-without-email --keep-until-expiring || true
+fi
+if [ -d "/etc/letsencrypt/live/$SHARE_DOMAIN" ]; then
+  install -m 644 "$SRC/nginx/$SHARE_DOMAIN.conf" "/etc/nginx/sites-available/$SHARE_DOMAIN.conf"
+  ln -sf "/etc/nginx/sites-available/$SHARE_DOMAIN.conf" "/etc/nginx/sites-enabled/$SHARE_DOMAIN.conf"
+  rm -f "/etc/nginx/sites-available/$SHARE_DOMAIN.http.conf"
+  echo "分享域名已配置"
+else
+  echo "!! $SHARE_DOMAIN 证书没拿到（检查 DNS 是否指向本机），先只用 /gx/ 路径"
+fi
+nginx -t
+systemctl reload nginx
+
 step "8. 验证"
 printf '首页       %s\n' "$(curl -s -o /dev/null -w '%{http_code}' https://$DOMAIN/)"
 printf '未登录接口  %s (401 OK)\n' "$(curl -s -o /dev/null -w '%{http_code}' https://$DOMAIN/api/me)"
 printf '健康检查   %s\n' "$(curl -s -o /dev/null -w '%{http_code}' https://$DOMAIN/api/health)"
+printf '分享域名   %s\n' "$(curl -s -o /dev/null -w '%{http_code}' https://$SHARE_DOMAIN/ || echo '未配置')"
 
 echo
 echo "========== 完成 =========="

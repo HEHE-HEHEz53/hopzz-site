@@ -82,6 +82,39 @@
   var passwordCancel = document.getElementById('passwordCancel');
   var passwordSubmit = document.getElementById('passwordSubmit');
 
+  var sharesBtn = document.getElementById('sharesBtn');
+
+  var shareModal = document.getElementById('shareModal');
+  var shareSub = document.getElementById('shareSub');
+  var shareForm = document.getElementById('shareForm');
+  var shareSuffixInput = document.getElementById('shareSuffix');
+  var shareCodeInput = document.getElementById('shareCode');
+  var shareError = document.getElementById('shareError');
+  var shareCancel = document.getElementById('shareCancel');
+  var shareSubmit = document.getElementById('shareSubmit');
+  var shareModalClose = document.getElementById('shareClose');
+
+  var shareResultModal = document.getElementById('shareResultModal');
+  var shareResultSub = document.getElementById('shareResultSub');
+  var shareLinkInput = document.getElementById('shareLinkInput');
+  var shareCodeHint = document.getElementById('shareCodeHint');
+  var shareCopyBtn = document.getElementById('shareCopyBtn');
+  var shareResultDone = document.getElementById('shareResultDone');
+  var shareResultClose = document.getElementById('shareResultClose');
+
+  var sharesModal = document.getElementById('sharesModal');
+  var sharesClose = document.getElementById('sharesClose');
+  var shareListEl = document.getElementById('shareList');
+  var shareListEmpty = document.getElementById('shareListEmpty');
+  var sharesError = document.getElementById('sharesError');
+
+  var previewModal = document.getElementById('previewModal');
+  var previewTitle = document.getElementById('previewTitle');
+  var previewImg = document.getElementById('previewImg');
+  var previewClose = document.getElementById('previewClose');
+  var previewDone = document.getElementById('previewDone');
+  var previewDownload = document.getElementById('previewDownload');
+
   var toastHost = document.getElementById('toastHost');
 
   /* ================= 状态 ================= */
@@ -112,8 +145,11 @@
     confirmAction: null,
 
     mkdirBusy: false,
-    pwdBusy: false,
-    pwdLocked: false,
+    shareEntry: null,
+    shareBusy: false,
+    shareCodeSaved: '',
+    previewEntry: null,
+    pwdBusy: false,    pwdLocked: false,
     pwdLockTimer: 0,
     pwdSuccess: false,
     pwdCloseTimer: 0
@@ -477,6 +513,9 @@
     state.moveTarget = '';
     state.confirmAction = null;
     state.mkdirBusy = false;
+    state.shareEntry = null;
+    state.shareBusy = false;
+    state.shareCodeSaved = '';
     state.pwdBusy = false;
     state.pwdSuccess = false;
     stopPwdLockout();
@@ -696,7 +735,9 @@
         name: name,
         type: entry.type === 'dir' ? 'dir' : 'file',
         size: Number(entry.size) || 0,
-        mtime: Number(entry.mtime) || 0
+        mtime: Number(entry.mtime) || 0,
+        special: typeof entry.special === 'string' ? entry.special : '',
+        shareToken: typeof entry.share_token === 'string' ? entry.share_token : ''
       });
     }
     list.sort(function (a, b) {
@@ -799,6 +840,7 @@
   function buildEntryRow(entry) {
     var row = document.createElement('div');
     row.className = 'entry-row';
+    if (entry.special === 'share') row.classList.add('is-share');
     row.setAttribute('role', 'button');
     row.tabIndex = 0;
 
@@ -816,6 +858,14 @@
     name.setAttribute('title', entry.name);
     info.appendChild(name);
 
+    if (entry.shareToken) {
+      var badge = document.createElement('span');
+      badge.className = 'entry-badge';
+      badge.textContent = '已分享';
+      badge.title = '这个文件夹有可用的分享链接';
+      info.appendChild(badge);
+    }
+
     var meta = document.createElement('span');
     meta.className = 'entry-meta';
     var timeText = formatTime(entry.mtime);
@@ -830,30 +880,57 @@
     var actions = document.createElement('div');
     actions.className = 'entry-actions';
 
-    var moveBtn = document.createElement('button');
-    moveBtn.type = 'button';
-    moveBtn.className = 'row-btn';
-    moveBtn.textContent = '移动';
-    moveBtn.addEventListener('click', function (event) {
-      event.stopPropagation();
-      openMove(entry);
-    });
-    actions.appendChild(moveBtn);
+    if (entry.special === 'share') {
+      var manageBtn = document.createElement('button');
+      manageBtn.type = 'button';
+      manageBtn.className = 'row-btn';
+      manageBtn.textContent = '管理';
+      manageBtn.addEventListener('click', function (event) {
+        event.stopPropagation();
+        openSharesManager();
+      });
+      actions.appendChild(manageBtn);
+    } else if (!inShareFolder(state.path)) {
+      var shareBtn = document.createElement('button');
+      shareBtn.type = 'button';
+      shareBtn.className = 'row-btn';
+      shareBtn.textContent = '分享';
+      shareBtn.addEventListener('click', function (event) {
+        event.stopPropagation();
+        openShare(entry);
+      });
+      actions.appendChild(shareBtn);
+    }
 
-    var deleteBtn = document.createElement('button');
-    deleteBtn.type = 'button';
-    deleteBtn.className = 'row-btn is-danger';
-    deleteBtn.textContent = '删除';
-    deleteBtn.addEventListener('click', function (event) {
-      event.stopPropagation();
-      openDeleteConfirm(entry);
-    });
-    actions.appendChild(deleteBtn);
+    if (entry.special !== 'share' && !inShareFolder(state.path)) {
+      var moveBtn = document.createElement('button');
+      moveBtn.type = 'button';
+      moveBtn.className = 'row-btn';
+      moveBtn.textContent = '移动';
+      moveBtn.addEventListener('click', function (event) {
+        event.stopPropagation();
+        openMove(entry);
+      });
+      actions.appendChild(moveBtn);
+    }
+
+    if (entry.special !== 'share') {
+      var deleteBtn = document.createElement('button');
+      deleteBtn.type = 'button';
+      deleteBtn.className = 'row-btn is-danger';
+      deleteBtn.textContent = '删除';
+      deleteBtn.addEventListener('click', function (event) {
+        event.stopPropagation();
+        openDeleteConfirm(entry);
+      });
+      actions.appendChild(deleteBtn);
+    }
 
     row.appendChild(actions);
 
     function activate() {
       if (entry.type === 'dir') loadDirectory(joinPath(state.path, entry.name));
+      else if (isImageName(entry.name)) openPreview(entry);
       else downloadEntry(entry);
     }
 
@@ -880,6 +957,34 @@
     document.body.removeChild(link);
   }
 
+  /* ================= 图片预览 ================= */
+  var IMAGE_EXT = /\.(jpe?g|png|gif|webp|bmp|svg|ico|avif)$/i;
+
+  function isImageName(name) {
+    return IMAGE_EXT.test(String(name || ''));
+  }
+
+  function openPreview(entry) {
+    state.previewEntry = entry;
+    previewTitle.textContent = entry.name;
+    previewTitle.setAttribute('title', entry.name);
+    previewImg.src = '/api/preview?path=' +
+      encodeURIComponent(joinPath(state.path, entry.name));
+    previewImg.alt = entry.name;
+    openModal(previewModal);
+  }
+
+  function closePreview() {
+    closeModal(previewModal);
+    previewImg.removeAttribute('src');
+    state.previewEntry = null;
+  }
+
+  function downloadPreview() {
+    if (!state.previewEntry) return;
+    downloadEntry(state.previewEntry);
+  }
+
   /* ================= 弹窗基础 ================= */
   function openModal(modal) {
     if (!modal) return;
@@ -898,10 +1003,14 @@
   }
 
   function closeAllModals() {
-    [mkdirModal, moveModal, confirmModal, settingsModal].forEach(function (modal) {
+    [mkdirModal, moveModal, confirmModal, settingsModal, shareModal, shareResultModal, sharesModal, previewModal].forEach(function (modal) {
       modal.classList.remove('is-open');
       modal.hidden = true;
     });
+    state.shareEntry = null;
+    state.shareBusy = false;
+    state.previewEntry = null;
+    if (previewImg) previewImg.removeAttribute('src');
     state.confirmAction = null;
     stopPwdLockout();
     if (state.pwdCloseTimer) {
@@ -1359,6 +1468,291 @@
     }
   }
 
+  /* ================= 分享 ================= */
+  var SHARE_DIR_NAME = '共享';
+
+  function inShareFolder(path) {
+    var value = normalizePath(path);
+    return value === '/' + SHARE_DIR_NAME || value.indexOf('/' + SHARE_DIR_NAME + '/') === 0;
+  }
+
+  function setShareError(message) {
+    if (!message) {
+      shareError.hidden = true;
+      shareError.textContent = '';
+      return;
+    }
+    shareError.textContent = message;
+    shareError.hidden = false;
+  }
+
+  function setSharesError(message) {
+    if (!message) {
+      sharesError.hidden = true;
+      sharesError.textContent = '';
+      return;
+    }
+    sharesError.textContent = message;
+    sharesError.hidden = false;
+  }
+
+  function openShare(entry) {
+    if (state.view !== 'files') return;
+    state.shareEntry = entry;
+    state.shareBusy = false;
+    state.shareCodeSaved = '';
+    shareSub.textContent = '把「' + entry.name + '」复制一份到「共享」文件夹，再生成一条专属链接。';
+    shareSuffixInput.value = '';
+    shareCodeInput.value = '';
+    shareSubmit.disabled = false;
+    shareSubmit.textContent = '生成链接';
+    setShareError('');
+    openModal(shareModal);
+    window.setTimeout(function () {
+      if (!shareModal.hidden) shareCodeInput.focus();
+    }, 80);
+  }
+
+  async function onShareSubmit(event) {
+    event.preventDefault();
+    if (state.shareBusy || !state.shareEntry) return;
+
+    var entry = state.shareEntry;
+    var code = shareCodeInput.value.trim();
+    var suffix = shareSuffixInput.value.trim();
+    if (code.length < 4) {
+      setShareError('共享码至少 4 位');
+      shareCodeInput.focus();
+      return;
+    }
+    if (code.length > 32) {
+      setShareError('共享码最多 32 位');
+      shareCodeInput.focus();
+      return;
+    }
+    if (suffix && !/^[A-Za-z0-9_-]{1,40}$/.test(suffix)) {
+      setShareError('后缀只能用字母、数字、- 或 _，最多 40 位');
+      shareSuffixInput.focus();
+      return;
+    }
+
+    state.shareBusy = true;
+    shareSubmit.disabled = true;
+    shareSubmit.textContent = '正在复制…';
+    setShareError('');
+
+    var fromPath = state.path;
+    try {
+      var result = await apiJson('/api/share/create', 'POST', {
+        path: joinPath(fromPath, entry.name),
+        code: code,
+        suffix: suffix
+      });
+      var data = expectOk(result, '创建分享失败');
+      state.shareCodeSaved = code;
+      closeModal(shareModal);
+      showShareResult(data);
+      if (state.view === 'files') await loadDirectory(state.path);
+    } catch (err) {
+      if (!err.auth) setShareError(err.message || '创建分享失败');
+    } finally {
+      state.shareBusy = false;
+      shareSubmit.disabled = false;
+      shareSubmit.textContent = '生成链接';
+    }
+  }
+
+  function showShareResult(data) {
+    var link = data && data.link ? String(data.link) : ('/gx/' + (data && data.token ? data.token : ''));
+    var url = /^https?:\/\//i.test(link) ? link : window.location.origin + link;
+    shareLinkInput.value = url;
+    shareResultSub.textContent = '「' + (data && data.name ? data.name : '内容') + '」已复制到「共享」文件夹。';
+    shareCodeHint.textContent = state.shareCodeSaved
+      ? '共享码：' + state.shareCodeSaved + '（只在这里显示一次，请记好）'
+      : '';
+    openModal(shareResultModal);
+  }
+
+  async function copyShareLink() {
+    var text = shareLinkInput.value;
+    if (!text) return;
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      try {
+        await navigator.clipboard.writeText(text);
+        showToast('链接已复制');
+        return;
+      } catch (err) {
+        /* 落到下面的兜底 */
+      }
+    }
+    shareLinkInput.focus();
+    shareLinkInput.select();
+    try {
+      document.execCommand('copy');
+      showToast('链接已复制');
+    } catch (err) {
+      showToast('请手动长按复制');
+    }
+  }
+
+  function copyText(text) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(function () {
+        showToast('已复制');
+      }, function () {
+        showToast('复制失败，请手动复制');
+      });
+      return;
+    }
+    var input = document.createElement('input');
+    input.value = text;
+    document.body.appendChild(input);
+    input.select();
+    try {
+      document.execCommand('copy');
+      showToast('已复制');
+    } catch (err) {
+      showToast('复制失败，请手动复制');
+    }
+    document.body.removeChild(input);
+  }
+
+  async function openSharesManager() {
+    if (state.view !== 'files') return;
+    shareListEl.textContent = '';
+    shareListEmpty.hidden = true;
+    setSharesError('');
+    openModal(sharesModal);
+    try {
+      var result = await apiJson('/api/share/list');
+      var data = expectOk(result, '读取分享列表失败');
+      renderShares(Array.isArray(data.items) ? data.items : []);
+    } catch (err) {
+      if (!err.auth) setSharesError(err.message || '读取分享列表失败');
+    }
+  }
+
+  function renderShares(items) {
+    shareListEl.textContent = '';
+    if (!items.length) {
+      shareListEmpty.hidden = false;
+      return;
+    }
+    shareListEmpty.hidden = true;
+    for (var i = 0; i < items.length; i++) {
+      shareListEl.appendChild(buildShareRow(items[i]));
+    }
+  }
+
+  function buildShareRow(item) {
+    var row = document.createElement('div');
+    row.className = 'share-item';
+    if (item.revoked) row.classList.add('is-revoked');
+
+    var head = document.createElement('div');
+    head.className = 'share-item-head';
+
+    var title = document.createElement('span');
+    title.className = 'share-item-name';
+    title.textContent = item.name || '(未命名)';
+    head.appendChild(title);
+
+    var status = document.createElement('span');
+    status.className = 'share-status';
+    if (item.revoked) {
+      status.textContent = '已取消';
+      status.classList.add('is-off');
+    } else if (item.missing) {
+      status.textContent = '副本已删';
+      status.classList.add('is-off');
+    } else {
+      status.textContent = '有效';
+      status.classList.add('is-on');
+    }
+    head.appendChild(status);
+    row.appendChild(head);
+
+    var rawLink = item.link || ('/gx/' + item.token);
+    var full = /^https?:\/\//i.test(rawLink) ? rawLink : window.location.origin + rawLink;
+    var linkEl = document.createElement('span');
+    linkEl.className = 'share-link';
+    linkEl.textContent = full;
+    linkEl.setAttribute('title', full);
+    row.appendChild(linkEl);
+
+    var meta = document.createElement('span');
+    meta.className = 'share-meta';
+    var bits = [];
+    bits.push('创建 ' + (formatTime(item.created_at) || '—'));
+    bits.push('访问 ' + (Number(item.hits) || 0) + ' 次');
+    if (item.last_access) bits.push('最近 ' + formatTime(item.last_access));
+    meta.textContent = bits.join(' · ');
+    row.appendChild(meta);
+
+    var actions = document.createElement('div');
+    actions.className = 'share-item-actions';
+
+    if (!item.revoked) {
+      var copyBtn = document.createElement('button');
+      copyBtn.type = 'button';
+      copyBtn.className = 'row-btn';
+      copyBtn.textContent = '复制链接';
+      copyBtn.addEventListener('click', function () {
+        copyText(full);
+      });
+      actions.appendChild(copyBtn);
+
+      var revokeBtn = document.createElement('button');
+      revokeBtn.type = 'button';
+      revokeBtn.className = 'row-btn is-danger';
+      revokeBtn.textContent = '取消链接';
+      revokeBtn.addEventListener('click', function () {
+        revokeShare(item, false);
+      });
+      actions.appendChild(revokeBtn);
+    }
+
+    if (!item.missing) {
+      var delBtn = document.createElement('button');
+      delBtn.type = 'button';
+      delBtn.className = 'row-btn';
+      delBtn.textContent = item.revoked ? '删除副本' : '取消并删副本';
+      delBtn.addEventListener('click', function () {
+        revokeShare(item, true);
+      });
+      actions.appendChild(delBtn);
+    }
+
+    row.appendChild(actions);
+    return row;
+  }
+
+  function revokeShare(item, deleteFiles) {
+    openConfirm({
+      title: deleteFiles ? '取消链接并删除副本？' : '取消链接？',
+      message: deleteFiles
+        ? '「' + item.name + '」的链接会立刻失效，「共享」文件夹里的副本也会被删掉。'
+        : '「' + item.name + '」的链接会立刻失效，副本仍留在「共享」文件夹里。',
+      okText: deleteFiles ? '取消并删除' : '取消链接',
+      onConfirm: async function () {
+        try {
+          var result = await apiJson('/api/share/revoke', 'POST', {
+            token: item.token,
+            delete_files: !!deleteFiles
+          });
+          expectOk(result, '操作失败');
+          showToast(deleteFiles ? '已取消并删除副本' : '链接已取消');
+          if (state.view === 'files' && inShareFolder(state.path)) {
+            await loadDirectory(state.path);
+          }
+          await openSharesManager();
+        } catch (err) {
+          if (!err.auth) showToast(err.message || '操作失败');
+        }
+      }
+    });
+  }
+
   /* ================= 移动端视口 ================= */
   function setupViewport() {
     var vv = window.visualViewport;
@@ -1458,6 +1852,7 @@
     });
     mkdirBtn.addEventListener('click', openMkdir);
     settingsBtn.addEventListener('click', openSettings);
+    sharesBtn.addEventListener('click', openSharesManager);
 
     mkdirForm.addEventListener('submit', onCreateFolder);
     mkdirCancel.addEventListener('click', function () {
@@ -1476,11 +1871,34 @@
     passwordCancel.addEventListener('click', closeSettings);
     passwordForm.addEventListener('submit', onPasswordSubmit);
 
-    [mkdirModal, moveModal, confirmModal, settingsModal].forEach(function (modal) {
+    shareForm.addEventListener('submit', onShareSubmit);
+    shareCancel.addEventListener('click', function () {
+      closeModal(shareModal);
+    });
+    shareModalClose.addEventListener('click', function () {
+      closeModal(shareModal);
+    });
+    shareResultClose.addEventListener('click', function () {
+      closeModal(shareResultModal);
+    });
+    shareResultDone.addEventListener('click', function () {
+      closeModal(shareResultModal);
+    });
+    shareCopyBtn.addEventListener('click', copyShareLink);
+    sharesClose.addEventListener('click', function () {
+      closeModal(sharesModal);
+    });
+
+    previewClose.addEventListener('click', closePreview);
+    previewDone.addEventListener('click', closePreview);
+    previewDownload.addEventListener('click', downloadPreview);
+
+    [mkdirModal, moveModal, confirmModal, settingsModal, shareModal, shareResultModal, sharesModal, previewModal].forEach(function (modal) {
       modal.addEventListener('click', function (event) {
         if (event.target !== modal) return;
         if (modal === settingsModal) closeSettings();
         else if (modal === confirmModal) closeConfirmModal();
+        else if (modal === previewModal) closePreview();
         else closeModal(modal);
       });
     });
@@ -1489,6 +1907,10 @@
       if (event.key !== 'Escape') return;
       if (!settingsModal.hidden) { closeSettings(); return; }
       if (!confirmModal.hidden) { closeConfirmModal(); return; }
+      if (!previewModal.hidden) { closePreview(); return; }
+      if (!shareModal.hidden) { closeModal(shareModal); return; }
+      if (!shareResultModal.hidden) { closeModal(shareResultModal); return; }
+      if (!sharesModal.hidden) { closeModal(sharesModal); return; }
       if (!moveModal.hidden) { closeModal(moveModal); return; }
       if (!mkdirModal.hidden) { closeModal(mkdirModal); }
     });
