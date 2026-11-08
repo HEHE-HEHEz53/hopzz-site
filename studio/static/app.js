@@ -1,14 +1,81 @@
 /* ============================================================
-   studio.hopzz.top — 前端主逻辑
+   studio.hopzz.top — 前端主逻辑 v2
    原生 JS：无构建、无框架、无外部 CDN、只用系统字体。
+
    硬约定：
-   - 用户数据只用 createElement / textContent 写入，不拼 HTML
+   - 用户数据只用 createElement / textContent 写入，不拼 HTML；
+     唯一的 innerHTML 使用点是 paintIcon()，只写入内置静态 SVG 常量。
    - 所有请求 credentials: 'same-origin'
    - 任何 401 统一回登录页
-   - AI 侧栏由 ai.js 暴露的 window.StudioAI.mount(body) 挂载
+   - AI 弹窗由 ai.js 暴露的 window.StudioAI 提供；分享面板由 share-admin.js 提供
    ============================================================ */
 (function () {
   'use strict';
+
+  // ================================================================ 内联图标
+  // 24×24 viewBox，stroke 1.6，圆角端点，currentColor —— 全部是静态常量。
+
+  var ICON_SVG = {
+    project: '<svg viewBox="0 0 24 24"><path d="M12 3 3 7.5 12 12l9-4.5L12 3Z"/><path d="m3 12 9 4.5L21 12"/><path d="m3 16.5 9 4.5 9-4.5"/></svg>',
+    works: '<svg viewBox="0 0 24 24"><path d="m12 3 2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1L3.2 9.5l6.1-.9L12 3Z"/></svg>',
+    repo: '<svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="5" rx="1.5"/><path d="M5 9v9a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V9"/><path d="M10 13h4"/></svg>',
+    settings: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.2"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.87-.34 1.7 1.7 0 0 0-1 1.56V21a2 2 0 1 1-4 0v-.11a1.7 1.7 0 0 0-1.11-1.56 1.7 1.7 0 0 0-1.87.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.7 1.7 0 0 0 .34-1.87 1.7 1.7 0 0 0-1.56-1H3a2 2 0 1 1 0-4h.11a1.7 1.7 0 0 0 1.56-1.11 1.7 1.7 0 0 0-.34-1.87l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.7 1.7 0 0 0 1.87.34H9a1.7 1.7 0 0 0 1-1.56V3a2 2 0 1 1 4 0v.11a1.7 1.7 0 0 0 1 1.56 1.7 1.7 0 0 0 1.87-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.7 1.7 0 0 0-.34 1.87V9a1.7 1.7 0 0 0 1.56 1H21a2 2 0 1 1 0 4h-.11a1.7 1.7 0 0 0-1.56 1Z"/></svg>',
+    plus: '<svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>',
+    logout: '<svg viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="m16 17 5-5-5-5"/><path d="M21 12H9"/></svg>',
+    search: '<svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>',
+    music: '<svg viewBox="0 0 24 24"><path d="M9 18V5l11-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="17" cy="16" r="3"/></svg>',
+    lyrics: '<svg viewBox="0 0 24 24"><path d="M4 6h16M4 10h16M4 14h10M4 18h7"/></svg>',
+    art: '<svg viewBox="0 0 24 24"><path d="M4 20c0-2 1-3.5 2.5-4.5L17.8 5a2.1 2.1 0 0 1 3 3L10.5 18.5C9.5 20 8 21 6 21H4v-1Z"/><path d="m14 7 3 3"/></svg>',
+    code: '<svg viewBox="0 0 24 24"><path d="m9 8-5 4 5 4"/><path d="m15 8 5 4-5 4"/></svg>',
+    video: '<svg viewBox="0 0 24 24"><rect x="3" y="5" width="13" height="14" rx="2"/><path d="m16 10 5-3v10l-5-3"/></svg>',
+    story: '<svg viewBox="0 0 24 24"><path d="M4 4.5A2.5 2.5 0 0 1 6.5 2H20v17H6.5A2.5 2.5 0 0 0 4 21.5V4.5Z"/><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/></svg>',
+    world: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18"/><path d="M12 3c2.5 2.5 3.8 5.6 3.8 9s-1.3 6.5-3.8 9c-2.5-2.5-3.8-5.6-3.8-9S9.5 5.5 12 3Z"/></svg>',
+    oc: '<svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.5"/><path d="M5 20c0-3.3 3.1-5.5 7-5.5s7 2.2 7 5.5"/></svg>',
+    other: '<svg viewBox="0 0 24 24"><circle cx="6" cy="6" r="1.3"/><circle cx="12" cy="6" r="1.3"/><circle cx="18" cy="6" r="1.3"/><circle cx="6" cy="12" r="1.3"/><circle cx="12" cy="12" r="1.3"/><circle cx="18" cy="12" r="1.3"/><circle cx="6" cy="18" r="1.3"/><circle cx="12" cy="18" r="1.3"/><circle cx="18" cy="18" r="1.3"/></svg>',
+    upload: '<svg viewBox="0 0 24 24"><path d="M12 16V4"/><path d="m7 9 5-5 5 5"/><path d="M4 16v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>',
+    trash: '<svg viewBox="0 0 24 24"><path d="M4 7h16"/><path d="M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/><path d="M6 7v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V7"/><path d="M10 11v6M14 11v6"/></svg>',
+    share: '<svg viewBox="0 0 24 24"><circle cx="6" cy="12" r="2.5"/><circle cx="18" cy="6" r="2.5"/><circle cx="18" cy="18" r="2.5"/><path d="m8.2 10.8 7.6-3.6M8.2 13.2l7.6 3.6"/></svg>',
+    ai: '<svg viewBox="0 0 24 24"><path d="M12 3.5 13.6 8 18 9.6 13.6 11.2 12 15.7 10.4 11.2 6 9.6 10.4 8 12 3.5Z"/><path d="m18.5 15.5.8 2.2 2.2.8-2.2.8-.8 2.2-.8-2.2-2.2-.8 2.2-.8.8-2.2Z"/></svg>',
+    close: '<svg viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></svg>',
+    minus: '<svg viewBox="0 0 24 24"><path d="M5 12h14"/></svg>',
+    back: '<svg viewBox="0 0 24 24"><path d="M19 12H5"/><path d="m11 18-6-6 6-6"/></svg>',
+    download: '<svg viewBox="0 0 24 24"><path d="M12 4v12"/><path d="m7 11 5 5 5-5"/><path d="M4 20h16"/></svg>',
+    folder: '<svg viewBox="0 0 24 24"><path d="M4 7a2 2 0 0 1 2-2h4l2 2.5h6a2 2 0 0 1 2 2V18a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7Z"/></svg>',
+    file: '<svg viewBox="0 0 24 24"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8l-5-5Z"/><path d="M14 3v5h5"/></svg>',
+    image: '<svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="1.8"/><path d="m4 18 5-5 4 4 3-3 4 4"/></svg>',
+    audio: '<svg viewBox="0 0 24 24"><path d="M9 18V5l11-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="17" cy="16" r="3"/></svg>',
+    text: '<svg viewBox="0 0 24 24"><path d="M4 6h16M4 10h16M4 14h16M4 18h10"/></svg>',
+    archive: '<svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="5" rx="1.5"/><path d="M5 9v9a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V9"/><path d="M10 13h4"/></svg>',
+    refresh: '<svg viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.3-5.6"/><path d="M20 4v5h-5"/></svg>',
+    check: '<svg viewBox="0 0 24 24"><path d="m5 13 4 4L19 7"/></svg>',
+    external: '<svg viewBox="0 0 24 24"><path d="M14 4h6v6"/><path d="M20 4 10 14"/><path d="M18 14v4a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4"/></svg>',
+    key: '<svg viewBox="0 0 24 24"><circle cx="8" cy="12" r="4"/><path d="M12 12h9"/><path d="M17 12v3M20 12v2"/></svg>',
+    sun: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M19.1 4.9l-1.4 1.4M6.3 17.7l-1.4 1.4"/></svg>',
+    moon: '<svg viewBox="0 0 24 24"><path d="M20 13.5A8 8 0 0 1 10.5 4 8 8 0 1 0 20 13.5Z"/></svg>',
+    monitor: '<svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></svg>',
+    pencil: '<svg viewBox="0 0 24 24"><path d="M4 20h4l11-11a2.1 2.1 0 0 0-3-3L5 17v3Z"/><path d="m14 6 3 3"/></svg>',
+    drag: '<svg viewBox="0 0 24 24"><circle cx="9" cy="6" r="1.1"/><circle cx="15" cy="6" r="1.1"/><circle cx="9" cy="12" r="1.1"/><circle cx="15" cy="12" r="1.1"/><circle cx="9" cy="18" r="1.1"/><circle cx="15" cy="18" r="1.1"/></svg>',
+    clock: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>',
+    alert: '<svg viewBox="0 0 24 24"><path d="M12 4 2.5 20h19L12 4Z"/><path d="M12 10v4"/><path d="M12 17.5v.01"/></svg>',
+    info: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v6"/><path d="M12 7.5v.01"/></svg>',
+    map: '<svg viewBox="0 0 24 24"><circle cx="6" cy="6" r="2.5"/><circle cx="18" cy="6" r="2.5"/><circle cx="12" cy="18" r="2.5"/><path d="M8.2 7.2 11 15.5M15.8 7.2 13 15.5M8.5 6h7"/></svg>',
+    eye: '<svg viewBox="0 0 24 24"><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12Z"/><circle cx="12" cy="12" r="3"/></svg>',
+    send: '<svg viewBox="0 0 24 24"><path d="M21 3 10.5 13.5"/><path d="m21 3-6.5 18-4-7.5L3 9.5 21 3Z"/></svg>',
+    palette: '<svg viewBox="0 0 24 24"><path d="M12 3a9 9 0 1 0 0 18c1.2 0 1.8-.9 1.8-2 0-1-.7-1.7-1.7-1.7h-1a2 2 0 0 1 0-4h4.6A4.3 4.3 0 0 0 20 9.2C19.4 5.6 16.1 3 12 3Z"/><circle cx="8" cy="10" r="1.2"/><circle cx="12" cy="7.5" r="1.2"/><circle cx="16" cy="10" r="1.2"/></svg>',
+    layers: '<svg viewBox="0 0 24 24"><path d="M12 3 3 8l9 5 9-5-9-5Z"/><path d="m3 13 9 5 9-5"/></svg>',
+    star: '<svg viewBox="0 0 24 24"><path d="m12 3 2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1L3.2 9.5l6.1-.9L12 3Z"/></svg>'
+  };
+
+  // 唯一写入 innerHTML 的地方：只放内置静态 SVG 图标常量，绝不写用户数据。
+  function paintIcon(el, name) {
+    el.innerHTML = ICON_SVG[name] || ICON_SVG.file;
+    return el;
+  }
+
+  function icon(name, cls) {
+    var el = h('span', { class: 'ico' + (cls ? ' ' + cls : ''), 'aria-hidden': 'true' });
+    return paintIcon(el, name);
+  }
 
   // ================================================================ DOM 工具
 
@@ -87,6 +154,10 @@
     while (el.firstChild) el.removeChild(el.firstChild);
   }
 
+  function chevronRight() {
+    return h('span', { class: 'crumb-sep', text: '/' });
+  }
+
   // ================================================================ 格式化
 
   function pad2(n) {
@@ -119,6 +190,13 @@
     if (diff >= 0 && diff < 86400) return Math.floor(diff / 3600) + ' 小时前';
     if (diff >= 0 && diff < 86400 * 30) return Math.floor(diff / 86400) + ' 天前';
     return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate());
+  }
+
+  function fmtDate(value) {
+    var d = toDate(value);
+    if (!d) return '';
+    return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate()) +
+      ' ' + pad2(d.getHours()) + ':' + pad2(d.getMinutes());
   }
 
   function fmtSize(bytes) {
@@ -170,13 +248,13 @@
   })();
 
   var KIND_ICON = {
-    image: '▧',
-    audio: '♫',
-    video: '▶',
-    text: '≡',
-    archive: '❒',
-    file: '•',
-    dir: '▸'
+    image: 'image',
+    audio: 'audio',
+    video: 'video',
+    text: 'text',
+    archive: 'archive',
+    file: 'file',
+    dir: 'folder'
   };
 
   function extOf(name) {
@@ -191,16 +269,16 @@
 
   // 项目类型
   var TYPES = [
-    { key: '', label: '全部' },
-    { key: 'music', label: '音乐', icon: '♪' },
-    { key: 'lyrics', label: '歌词', icon: '✎' },
-    { key: 'art', label: '绘画', icon: '✦' },
-    { key: 'code', label: '代码', icon: '⌘' },
-    { key: 'video', label: '视频', icon: '▶' },
-    { key: 'story', label: '剧情', icon: '❧' },
-    { key: 'world', label: '世界观', icon: '◉' },
-    { key: 'oc', label: 'OC', icon: '☺' },
-    { key: 'other', label: '其他', icon: '⋯' }
+    { key: '', label: '全部', icon: 'layers' },
+    { key: 'music', label: '音乐', icon: 'music' },
+    { key: 'lyrics', label: '歌词', icon: 'lyrics' },
+    { key: 'art', label: '绘画', icon: 'art' },
+    { key: 'code', label: '代码', icon: 'code' },
+    { key: 'video', label: '视频', icon: 'video' },
+    { key: 'story', label: '剧情', icon: 'story' },
+    { key: 'world', label: '世界观', icon: 'world' },
+    { key: 'oc', label: 'OC', icon: 'oc' },
+    { key: 'other', label: '其他', icon: 'other' }
   ];
 
   var TYPE_MAP = {};
@@ -209,7 +287,7 @@
   });
 
   function typeInfo(key) {
-    return TYPE_MAP[key] || { key: key, label: String(key || '其他'), icon: '◇' };
+    return TYPE_MAP[key] || { key: key, label: String(key || '其他'), icon: 'other' };
   }
 
   // 新建项目时按类型给的默认模块（后端 /api/modules 的 defaults 优先，这里是兜底）
@@ -230,6 +308,75 @@
   var MONO_KEYS = ['lyrics', 'chords', 'code', 'script', 'outline', 'notes', 'lrc', 'content'];
   var SKIP_FIELD_KEYS = ['name', 'summary', 'tags'];
 
+  // ================================================================ 设置（localStorage）
+
+  var SETTINGS_KEY = 'studio.settings.v1';
+  var SETTINGS_DEFAULTS = {
+    defaultType: 'music',
+    pageSize: 12,
+    showUpdated: true,
+    theme: 'light',
+    blur: 'mid',
+    motion: true,
+    shareMode: 'view',
+    sharePrefix: ''
+  };
+
+  function loadSettings() {
+    var data = {};
+    try {
+      var raw = localStorage.getItem(SETTINGS_KEY);
+      if (raw) {
+        var parsed = JSON.parse(raw);
+        if (parsed && typeof parsed === 'object') data = parsed;
+      }
+    } catch (err) {
+      data = {};
+    }
+    var merged = {};
+    Object.keys(SETTINGS_DEFAULTS).forEach(function (key) {
+      merged[key] = data[key] === undefined ? SETTINGS_DEFAULTS[key] : data[key];
+    });
+    return merged;
+  }
+
+  function persistSettings(patch) {
+    state.settings = Object.assign({}, state.settings, patch || {});
+    try {
+      localStorage.setItem(SETTINGS_KEY, JSON.stringify(state.settings));
+    } catch (err) { /* 隐私模式下写不进去也不影响使用 */ }
+  }
+
+  function saveSettings(patch) {
+    persistSettings(patch);
+    applySettings();
+  }
+
+  function resolvedTheme() {
+    if (state.settings.theme === 'dark') return 'dark';
+    if (state.settings.theme === 'light') return 'light';
+    try {
+      return window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    } catch (err) {
+      return 'light';
+    }
+  }
+
+  function applySettings() {
+    var root = document.documentElement;
+    var theme = resolvedTheme();
+    root.dataset.theme = theme;
+    root.dataset.blur = state.settings.blur || 'mid';
+    root.dataset.motion = state.settings.motion === false ? 'off' : 'on';
+    var meta = document.querySelector('meta[name="theme-color"]');
+    if (meta) meta.setAttribute('content', theme === 'dark' ? '#12181e' : '#f6f4ee');
+  }
+
+  function updateSetting(key, value, rerender) {
+    saveSettings({ [key]: value });
+    if (rerender !== false && state.view === 'settings') renderSettingsBody();
+  }
+
   // ================================================================ 状态
 
   var state = {
@@ -237,23 +384,30 @@
     setupNeeded: false,
     view: 'login',
 
+    settings: loadSettings(),
+
     allProjects: [],
     projects: [],
     tags: [],
-    modules: [],
-    filters: { type: '', q: '', tag: '' },
+    filters: { q: '', tag: '', type: '' },
+    wallLimit: 12,
+    worksType: '',
+    repoType: '',
+    settingsSection: 'general',
 
     project: null,
     detailTab: 'edit',
     repoPath: '',
     repoEntries: [],
+    selectedProjectId: '',
 
     saveTimer: null,
     pendingPatch: null,
     saveSeq: 0,
     moduleDefaults: null,
 
-    aiMounted: false
+    aiMounted: false,
+    backendVersion: ''
   };
 
   // ================================================================ 请求
@@ -288,6 +442,12 @@
     return [];
   }
 
+  function serverErrorText(err) {
+    var base = err && err.message ? String(err.message) : '请求失败';
+    if (err && err.status) return base + '（HTTP ' + err.status + '）';
+    return base;
+  }
+
   async function api(path, options) {
     var opts = options || {};
     var allow401 = opts.allow401 === true;
@@ -308,7 +468,7 @@
     try {
       res = await fetch(path, init);
     } catch (err) {
-      throw new HttpError(0, '网络连接失败');
+      throw new HttpError(0, '网络连接失败，请检查网络后重试');
     }
 
     var contentType = res.headers.get('content-type') || '';
@@ -322,7 +482,7 @@
     } else if (res.status !== 204) {
       try {
         var raw = await res.text();
-        if (raw) data = { error: raw.slice(0, 300) };
+        if (raw) data = { error: raw.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 300) };
       } catch (err) {
         data = null;
       }
@@ -338,6 +498,9 @@
 
     if (!res.ok) {
       var message = (data && (data.error || data.detail)) || ('请求失败（' + res.status + '）');
+      if (typeof message !== 'string') {
+        try { message = JSON.stringify(message); } catch (err) { message = '请求失败（' + res.status + '）'; }
+      }
       throw new HttpError(res.status, String(message), data);
     }
 
@@ -353,7 +516,7 @@
     try {
       res = await fetch(url, { credentials: 'same-origin' });
     } catch (err) {
-      throw new HttpError(0, '网络连接失败');
+      throw new HttpError(0, '网络连接失败，请检查网络后重试');
     }
     if (res.status === 401) {
       handleUnauthorized();
@@ -409,7 +572,7 @@
       setTimeout(function () {
         if (el.parentNode) el.parentNode.removeChild(el);
       }, 260);
-    }, 3200);
+    }, 3600);
   }
 
   var activeModal = null;
@@ -435,10 +598,9 @@
     var closeBtn = h('button', {
       class: 'icon-btn modal-close',
       type: 'button',
-      text: '×',
-      'aria-label': '关闭',
-      onclick: function () { close(); }
-    });
+      'aria-label': '关闭'
+    }, icon('close'));
+    closeBtn.addEventListener('click', function () { close(); });
 
     var card = h('div', { class: 'modal' + (opts.wide ? ' modal-wide' : '') });
     var head = h('div', { class: 'modal-head' },
@@ -448,6 +610,7 @@
     var body = h('div', { class: 'modal-body' });
     if (opts.body) body.appendChild(opts.body);
     card.appendChild(head);
+    if (opts.sub) card.appendChild(h('p', { class: 'modal-sub', text: opts.sub }));
     card.appendChild(body);
 
     if (opts.actions && opts.actions.length) {
@@ -459,7 +622,7 @@
     }
 
     var overlay = h('div', { class: 'modal-overlay' }, card);
-    overlay.addEventListener('click', function (e) {
+    overlay.addEventListener('mousedown', function (e) {
       if (e.target === overlay) close();
     });
     root.appendChild(overlay);
@@ -564,7 +727,7 @@
 
       close = openModal({
         title: settings.title || '输入',
-        body: h('div', {}, fieldBox(settings.label || '名称', input)),
+        body: h('div', {}, fieldBox(settings.label || '名称', input, settings.hint)),
         actions: [cancelBtn, okBtn],
         onClose: function () { finish(null); }
       });
@@ -614,6 +777,7 @@
     state.authed = false;
     state.setupNeeded = mode === 'setup';
     state.view = 'login';
+    hideAI();
     $('#main-view').hidden = true;
     $('#login-view').hidden = false;
     setText($('#login-subtitle'), mode === 'setup' ? '第一次使用，先设置一个密码' : '输入密码进入创作工作站');
@@ -660,7 +824,7 @@
         await afterLogin();
       } catch (err) {
         setupBtn.disabled = false;
-        setText(errorEl, err.message || '设置失败');
+        setText(errorEl, serverErrorText(err));
       }
       return;
     }
@@ -677,8 +841,8 @@
         showLogin('setup');
         return;
       }
-      setText(errorEl, err.message || '登录失败');
-      $('#login-password').select();
+      setText(errorEl, serverErrorText(err));
+      try { $('#login-password').select(); } catch (e) { /* ignore */ }
     }
   }
 
@@ -689,7 +853,7 @@
       await loadModules();
     } catch (err) {
       if (err.status === 401) return;
-      toast('模块清单加载失败：' + err.message, 'warn');
+      toast('模块清单加载失败：' + serverErrorText(err), 'warn');
     }
     await route();
     mountAI();
@@ -709,7 +873,7 @@
     state.allProjects = [];
     state.projects = [];
     state.tags = [];
-    state.filters = { type: '', q: '', tag: '' };
+    state.filters = { q: '', tag: '', type: '' };
     closeAllModals();
     closeAI();
     try {
@@ -719,7 +883,7 @@
     toast('已退出登录', 'info');
   }
 
-  // ================================================================ AI 侧栏
+  // ================================================================ AI 弹窗
 
   function mountAI() {
     if (state.aiMounted) return;
@@ -733,10 +897,6 @@
           state.aiMounted = true;
           return;
         } catch (err) {
-          try {
-            var aiRoot = document.querySelector(".sai-root");
-            if (aiRoot) { aiRoot.classList.add("sai-away"); }
-          } catch (err) { /* ignore */ }
           state.aiMounted = false;
           if (attempts < 25) setTimeout(attempt, 300);
           return;
@@ -753,11 +913,182 @@
         window.StudioAI.close();
       }
     } catch (err) { /* ignore */ }
-    // 登出 / 401 后必须允许下次登录重新挂载 AI 小球
     state.aiMounted = false;
   }
 
-  // ================================================================ 路由
+  // 登录页不显示 AI 小球（登出 / 未登录时调用）
+  function hideAI() {
+    try {
+      var ai = window.StudioAI;
+      if (ai && typeof ai.hide === 'function') ai.hide();
+      else if (ai && typeof ai.close === 'function') ai.close();
+    } catch (err) { /* ignore */ }
+    state.aiMounted = false;
+  }
+
+  function openAISettings() {
+    var ai = window.StudioAI;
+    if (ai && typeof ai.openSettings === 'function') {
+      ai.openSettings();
+      return;
+    }
+    if (ai && typeof ai.open === 'function') {
+      ai.open();
+      toast('AI 面板已打开，点右上角「设置」配置服务商', 'info');
+      return;
+    }
+    toast('AI 模块没有加载', 'warn');
+  }
+
+  // ================================================================ 路由 / 导航
+
+  var NAV_ITEMS = [
+    { key: 'wall', label: '项目', icon: 'project' },
+    { key: 'works', label: '作品', icon: 'works' },
+    { key: 'repo', label: '仓库', icon: 'repo' },
+    { key: 'settings', label: '设置', icon: 'settings' }
+  ];
+
+  var SETTINGS_SECTIONS = [
+    { key: 'general', label: '常规', icon: 'settings' },
+    { key: 'appearance', label: '外观', icon: 'palette' },
+    { key: 'ai', label: 'AI', icon: 'ai' },
+    { key: 'share', label: '分享', icon: 'share' },
+    { key: 'account', label: '账户', icon: 'oc' },
+    { key: 'about', label: '关于', icon: 'info' }
+  ];
+
+  function parseRoute() {
+    var hash = location.hash || '';
+    var detail = hash.match(/^#\/p\/([a-z0-9][a-z0-9-]{2,63})(?:\/(repo))?$/i);
+    if (detail) return { name: 'detail', id: detail[1], tab: detail[2] ? 'repo' : 'edit' };
+    if (hash.indexOf('#/works') === 0) return { name: 'works' };
+    if (hash.indexOf('#/repo') === 0) return { name: 'repo' };
+    if (hash.indexOf('#/settings') === 0) return { name: 'settings' };
+    return { name: 'wall' };
+  }
+
+  function renderPrimaryNav() {
+    var nav = $('#primary-nav');
+    if (!nav) return;
+    clear(nav);
+    NAV_ITEMS.forEach(function (item) {
+      var active = state.view === item.key ||
+        (item.key === 'wall' && state.view === 'detail');
+      var btn = h('button', {
+        class: 'nav-link' + (active ? ' is-active' : ''),
+        type: 'button',
+        'aria-current': active ? 'page' : null,
+        onclick: function () { go(item.key); }
+      });
+      btn.appendChild(icon(item.icon));
+      btn.appendChild(h('span', { class: 'nav-label', text: item.label }));
+      nav.appendChild(btn);
+    });
+  }
+
+  function renderSubNav() {
+    var nav = $('#subnav');
+    if (!nav) return;
+    clear(nav);
+
+    if (state.view === 'detail' || state.view === 'login') {
+      nav.hidden = true;
+      return;
+    }
+    nav.hidden = false;
+
+    if (state.view === 'settings') {
+      SETTINGS_SECTIONS.forEach(function (section) {
+        var active = state.settingsSection === section.key;
+        var btn = h('button', {
+          class: 'subnav-btn' + (active ? ' is-active' : ''),
+          type: 'button',
+          'aria-pressed': active ? 'true' : 'false',
+          onclick: function () {
+            state.settingsSection = section.key;
+            renderSubNav();
+            renderSettingsBody();
+          }
+        });
+        btn.appendChild(icon(section.icon, 'ico-sm'));
+        btn.appendChild(h('span', { text: section.label }));
+        nav.appendChild(btn);
+      });
+      return;
+    }
+
+    var typeKey = state.view === 'wall' ? state.filters.type
+      : (state.view === 'works' ? state.worksType : state.repoType);
+    var source = state.view === 'works' ? publishedProjects() : state.allProjects;
+    var counts = countTypes(source);
+
+    TYPES.forEach(function (type) {
+      var active = typeKey === type.key;
+      var btn = h('button', {
+        class: 'subnav-btn' + (active ? ' is-active' : ''),
+        type: 'button',
+        'aria-pressed': active ? 'true' : 'false',
+        onclick: function () {
+          if (state.view === 'wall') {
+            state.filters.type = type.key;
+            state.wallLimit = state.settings.pageSize;
+            applyWallFilters();
+            renderSubNav();
+            renderProjectGrid();
+          } else if (state.view === 'works') {
+            state.worksType = type.key;
+            renderSubNav();
+            renderWorks();
+          } else {
+            state.repoType = type.key;
+            renderSubNav();
+            renderRepoList();
+          }
+        }
+      });
+      btn.appendChild(icon(type.icon, 'ico-sm'));
+      btn.appendChild(h('span', { text: type.label }));
+      var count = type.key ? (counts[type.key] || 0) : source.length;
+      btn.appendChild(h('span', { class: 'subnav-count', text: String(count) }));
+      nav.appendChild(btn);
+    });
+  }
+
+  function countTypes(list) {
+    var counts = {};
+    list.forEach(function (project) {
+      var key = String(project.type || 'other');
+      counts[key] = (counts[key] || 0) + 1;
+    });
+    return counts;
+  }
+
+  function go(viewKey) {
+    if (viewKey === 'wall') {
+      location.hash = '#/wall';
+    } else if (viewKey === 'works') {
+      location.hash = '#/works';
+    } else if (viewKey === 'repo') {
+      location.hash = '#/repo';
+    } else if (viewKey === 'settings') {
+      location.hash = '#/settings';
+    } else {
+      return;
+    }
+    if (state.pendingPatch) flushSave();
+  }
+
+  function showView(name) {
+    state.view = name;
+    var target = name === 'repo' ? 'repo-list' : name;
+    ['wall', 'works', 'repo-list', 'settings', 'detail'].forEach(function (key) {
+      var el = $('#' + key + '-view');
+      if (el) el.hidden = key !== target;
+    });
+    renderPrimaryNav();
+    renderSubNav();
+  }
 
   async function route() {
     if (!state.authed) {
@@ -766,27 +1097,25 @@
     }
     if (state.pendingPatch) flushSave();
 
-    var hash = location.hash || '';
-    var match = hash.match(/^#\/p\/([a-z0-9][a-z0-9-]{2,63})(?:\/(repo))?$/i);
-    if (match) {
-      await openProject(match[1], match[2] ? 'repo' : 'edit');
+    var target = parseRoute();
+    if (target.name === 'detail') {
+      await openProject(target.id, target.tab);
       return;
     }
-    try {
-      if (hash !== '#/wall') history.replaceState(null, '', '#/wall');
-    } catch (err) { /* ignore */ }
+    if (target.name === 'works') {
+      await openWorks();
+      return;
+    }
+    if (target.name === 'repo') {
+      await openRepoList();
+      return;
+    }
+    if (target.name === 'settings') {
+      await openSettings();
+      return;
+    }
     await openWall();
   }
-
-  function showView(name) {
-    state.view = name;
-    var wall = $('#wall-view');
-    var detail = $('#detail-view');
-    if (wall) wall.hidden = name !== 'wall';
-    if (detail) detail.hidden = name !== 'detail';
-  }
-
-  // ================================================================ 项目墙
 
   async function loadAllProjects() {
     var data = await api('/api/projects');
@@ -812,15 +1141,19 @@
     });
   }
 
-  function hasFilters() {
-    return !!(state.filters.type || state.filters.q || state.filters.tag);
+  function publishedProjects() {
+    return state.allProjects.filter(function (project) {
+      return project && project.publish && project.publish.enabled === true;
+    });
   }
 
-  function applyFilters(list) {
+  // ================================================================ 项目墙
+
+  function applyWallFilters() {
     var type = state.filters.type;
     var tag = state.filters.tag;
     var query = (state.filters.q || '').toLowerCase();
-    return list.filter(function (project) {
+    state.projects = state.allProjects.filter(function (project) {
       if (type && String(project.type || 'other') !== type) return false;
       if (tag) {
         var tags = Array.isArray(project.tags) ? project.tags : [];
@@ -836,191 +1169,214 @@
     });
   }
 
-  async function loadWallList() {
-    var params = new URLSearchParams();
-    if (state.filters.type) params.set('type', state.filters.type);
-    if (state.filters.q) params.set('q', state.filters.q);
-    if (state.filters.tag) params.set('tag', state.filters.tag);
-    var qs = params.toString();
-    if (!qs) {
-      state.projects = applyFilters(state.allProjects);
-      return;
-    }
-    var data = await api('/api/projects?' + qs);
-    var list = asArray(data, ['projects', 'items', 'list', 'data']);
-    // 后端已按 type/q/tag 过滤（q 会搜 fields），直接信任；空结果也保留
-    state.projects = list;
-  }
-
   async function openWall() {
     showView('wall');
     state.project = null;
-    var detailView = $('#detail-view');
-    if (detailView) clear(detailView);
     document.title = 'Hopzz Studio · 创作工作站';
     try {
       await loadAllProjects();
     } catch (err) {
       if (err.status === 401) return;
-      toast('项目列表加载失败：' + err.message, 'error');
+      renderWallError(err);
       return;
     }
-    try {
-      await loadWallList();
-    } catch (err) {
-      if (err.status === 401) return;
-      state.projects = applyFilters(state.allProjects);
-    }
-    renderWall();
-  }
-
-  function refreshList() {
-    loadWallList().then(function () {
-      renderWall();
-    }).catch(function (err) {
-      if (err.status !== 401) toast(err.message || '筛选失败', 'error');
-    });
-  }
-
-  function renderWall() {
-    var wallView = $('#wall-view');
-    if (wallView) wallView.hidden = state.view !== 'wall';
-
-    var info = state.filters.type ? typeInfo(state.filters.type) : null;
-    var title = '全部项目';
-    if (info) title = info.label + '项目';
-    else if (state.filters.tag) title = '标签：' + state.filters.tag;
-    if (state.filters.q) title = '搜索：' + state.filters.q;
-    setText($('#wall-title'), title);
-    setText($('#wall-count'), state.projects.length ? '共 ' + state.projects.length + ' 个项目' : '');
-
-    var searchInput = $('#search-input');
-    if (searchInput && document.activeElement !== searchInput) {
-      searchInput.value = state.filters.q || '';
-    }
-
-    renderTypeNav();
+    state.wallLimit = state.settings.pageSize;
+    applyWallFilters();
+    renderSubNav();
     renderTagFilter();
+    renderWallHead();
     renderProjectGrid();
   }
 
-  function renderTypeNav() {
-    var nav = $('#type-nav');
-    if (!nav) return;
-    clear(nav);
-
-    var counts = {};
-    state.allProjects.forEach(function (project) {
-      var key = String(project.type || 'other');
-      counts[key] = (counts[key] || 0) + 1;
-    });
-
-    TYPES.forEach(function (type) {
-      var active = state.filters.type === type.key;
-      var btn = h('button', {
-        class: 'type-btn' + (active ? ' is-active' : ''),
-        type: 'button',
-        'aria-pressed': active ? 'true' : 'false',
-        onclick: function () {
-          state.filters.type = type.key;
-          refreshList();
-        }
-      });
-      btn.appendChild(h('span', { class: 'type-icon', text: type.icon || '◇' }));
-      btn.appendChild(h('span', { class: 'type-label', text: type.label }));
-      var count = type.key ? (counts[type.key] || 0) : state.allProjects.length;
-      btn.appendChild(h('span', { class: 'type-count', text: String(count) }));
-      nav.appendChild(btn);
-    });
+  function renderWallError(err) {
+    var grid = $('#project-grid');
+    var empty = $('#wall-empty');
+    if (grid) clear(grid);
+    if (!empty) return;
+    clear(empty);
+    empty.hidden = false;
+    empty.appendChild(h('span', { class: 'empty-icon' }, icon('alert')));
+    empty.appendChild(h('p', { class: 'empty-text', text: '项目列表加载失败' }));
+    empty.appendChild(h('p', { class: 'empty-sub', text: serverErrorText(err) }));
+    empty.appendChild(h('button', {
+      class: 'btn btn-primary',
+      type: 'button',
+      text: '重试',
+      onclick: function () { route(); }
+    }));
   }
 
   function renderTagFilter() {
     var box = $('#tag-filter');
     if (!box) return;
     clear(box);
-
+    if (!state.tags.length) {
+      box.hidden = true;
+      return;
+    }
+    box.hidden = false;
     var allChip = h('button', {
       class: 'tag-chip tag-btn' + (!state.filters.tag ? ' is-active' : ''),
       type: 'button',
       text: '全部标签',
       onclick: function () {
         state.filters.tag = '';
-        refreshList();
+        state.wallLimit = state.settings.pageSize;
+        applyWallFilters();
+        renderTagFilter();
+        renderWallHead();
+        renderProjectGrid();
       }
     });
     box.appendChild(allChip);
 
     state.tags.forEach(function (tag) {
       var active = state.filters.tag === tag;
-      var chip = h('button', {
+      box.appendChild(h('button', {
         class: 'tag-chip tag-btn' + (active ? ' is-active' : ''),
         type: 'button',
         text: tag,
         onclick: function () {
           state.filters.tag = state.filters.tag === tag ? '' : tag;
-          refreshList();
+          state.wallLimit = state.settings.pageSize;
+          applyWallFilters();
+          renderTagFilter();
+          renderWallHead();
+          renderProjectGrid();
         }
-      });
-      box.appendChild(chip);
+      }));
     });
+  }
 
-    if (!state.tags.length) {
-      box.appendChild(h('span', { class: 'tag-empty', text: '暂无标签' }));
+  function renderWallHead() {
+    var info = state.filters.type ? typeInfo(state.filters.type) : null;
+    var title = '全部项目';
+    if (info) title = info.label + '项目';
+    if (state.filters.tag) title = '标签：' + state.filters.tag;
+    if (state.filters.q) title = '搜索：' + state.filters.q;
+    setText($('#wall-count'), state.projects.length ? title + ' · 共 ' + state.projects.length + ' 个' : title);
+
+    var searchInput = $('#search-input');
+    if (searchInput && document.activeElement !== searchInput) {
+      searchInput.value = state.filters.q || '';
     }
   }
 
   function renderProjectGrid() {
     var grid = $('#project-grid');
     var empty = $('#wall-empty');
+    var loadMore = $('#load-more-btn');
     if (!grid || !empty) return;
     clear(grid);
     clear(empty);
+    empty.hidden = true;
 
     if (!state.projects.length) {
-      empty.hidden = false;
-      empty.appendChild(h('span', { class: 'empty-icon', text: '◇' }));
-      empty.appendChild(h('p', {
-        class: 'empty-text',
-        text: hasFilters() ? '没有符合条件的项目' : '还没有项目，先新建一个吧'
-      }));
-      if (!hasFilters()) {
-        empty.appendChild(h('button', {
-          class: 'btn btn-primary',
-          type: 'button',
-          text: '新建第一个项目',
-          onclick: function () { openNewProject(); }
-        }));
-      }
+      renderEmptyState(empty, {
+        iconName: 'project',
+        text: hasWallFilters() ? '没有符合条件的项目' : '还没有项目',
+        sub: hasWallFilters() ? '换个类型或清空搜索再试试。' : '新建第一个项目，内容和文件都会保存在网盘里。',
+        actionText: hasWallFilters() ? '清空筛选' : '新建第一个项目',
+        action: function () {
+          if (hasWallFilters()) {
+            state.filters = { q: '', tag: '', type: '' };
+            applyWallFilters();
+            renderSubNav();
+            renderTagFilter();
+            renderWallHead();
+            renderProjectGrid();
+          } else {
+            openNewProject();
+          }
+        }
+      });
+      if (loadMore) loadMore.hidden = true;
       return;
     }
 
-    empty.hidden = true;
-    state.projects.forEach(function (project) {
-      grid.appendChild(projectCard(project));
+    var limit = Math.max(1, Number(state.settings.pageSize) || 12);
+    var shown = Math.min(state.wallLimit || limit, state.projects.length);
+    state.projects.slice(0, shown).forEach(function (project) {
+      grid.appendChild(projectCard(project, { showPublish: true }));
     });
+    if (loadMore) {
+      loadMore.hidden = state.projects.length <= shown;
+      loadMore.onclick = function () {
+        state.wallLimit = shown + limit;
+        renderProjectGrid();
+      };
+    }
   }
 
-  function projectCard(project) {
+  function hasWallFilters() {
+    return !!(state.filters.type || state.filters.q || state.filters.tag);
+  }
+
+  function renderEmptyState(box, opts) {
+    box.hidden = false;
+    box.appendChild(h('span', { class: 'empty-icon' }, icon(opts.iconName || 'project')));
+    box.appendChild(h('p', { class: 'empty-text', text: opts.text || '这里还是空的' }));
+    if (opts.sub) box.appendChild(h('p', { class: 'empty-sub', text: opts.sub }));
+    if (opts.actionText && opts.action) {
+      box.appendChild(h('button', {
+        class: 'btn btn-primary',
+        type: 'button',
+        text: opts.actionText,
+        onclick: opts.action
+      }));
+    }
+  }
+
+  function coverPathOf(project) {
+    var fields = project && project.fields && typeof project.fields === 'object' ? project.fields : {};
+    var candidates = [project.cover, project.thumbnail, fields.cover, fields.thumbnail, fields.thumb];
+    var exts = IMAGE_EXT;
+    for (var i = 0; i < candidates.length; i += 1) {
+      var value = candidates[i];
+      if (typeof value === 'string' && value.trim()) {
+        var ext = extOf(value);
+        if (exts.indexOf(ext) >= 0) return value.trim();
+      }
+    }
+    return '';
+  }
+
+  function projectCard(project, opts) {
+    var options = opts || {};
     var info = typeInfo(project.type);
     var name = String(project.name || '未命名项目');
-    var card = h('button', {
+    var card = h('article', {
       class: 'project-card',
-      type: 'button',
+      role: 'button',
+      tabindex: '0',
       'aria-label': name + '，' + info.label + '项目'
     });
 
-    card.appendChild(h('div', { class: 'pc-head' },
-      h('span', { class: 'pc-icon', text: info.icon || '◇' }),
-      h('span', { class: 'pc-type', text: info.label })
-    ));
-    card.appendChild(h('h3', { class: 'pc-name', text: name }));
+    var coverPath = coverPathOf(project);
+    var cover = h('div', { class: 'pc-cover' }, icon(info.icon || 'other'));
+    if (coverPath) {
+      var img = h('img', { alt: '', loading: 'lazy' });
+      img.addEventListener('error', function () {
+        if (img.parentNode) img.parentNode.removeChild(img);
+      });
+      img.src = thumbUrl(project.id, coverPath, 640);
+      cover.appendChild(img);
+    }
+    if (options.showPublish && project.publish && project.publish.enabled) {
+      cover.appendChild(h('span', { class: 'pc-cover-badge' }, icon('check', 'ico-sm'), '已发布'));
+    }
+    card.appendChild(cover);
+
+    var body = h('div', { class: 'pc-body' });
+    var head = h('div', { class: 'pc-head' });
+    head.appendChild(icon(info.icon, 'ico-sm'));
+    head.appendChild(h('span', { text: info.label }));
+    body.appendChild(head);
+    body.appendChild(h('h3', { class: 'pc-name', text: name }));
 
     if (project.summary) {
       var summary = String(project.summary);
-      card.appendChild(h('p', {
-        class: 'pc-summary',
-        text: summary.length > 90 ? summary.slice(0, 90) + '…' : summary
-      }));
+      body.appendChild(h('p', { class: 'pc-summary', text: summary }));
     }
 
     var tags = Array.isArray(project.tags) ? project.tags.slice(0, 4) : [];
@@ -1029,18 +1385,434 @@
       tags.forEach(function (tag) {
         strip.appendChild(h('span', { class: 'tag-chip tag-chip--mini', text: tag }));
       });
-      card.appendChild(strip);
+      body.appendChild(strip);
     }
 
-    var moduleCount = Array.isArray(project.modules) ? project.modules.length : 0;
-    card.appendChild(h('div', { class: 'pc-foot' },
-      h('span', { class: 'pc-modules', text: moduleCount + ' 个模块' }),
-      h('span', { class: 'pc-time', text: fmtTime(project.updatedAt || project.createdAt) })
-    ));
+    if (state.settings.showUpdated !== false || options.showPublishDate) {
+      var moduleCount = Array.isArray(project.modules) ? project.modules.length : 0;
+      var leftText = options.showPublishDate && project.publish
+        ? '发布于 ' + (fmtDate(project.publish.at) || '—')
+        : moduleCount + ' 个模块';
+      body.appendChild(h('div', { class: 'pc-foot' },
+        h('span', { class: 'pc-modules', text: leftText }),
+        h('span', { class: 'pc-time', text: fmtTime(project.updatedAt || project.createdAt) || '—' })
+      ));
+    }
+    card.appendChild(body);
 
-    card.addEventListener('click', function () {
+    function open() {
       location.hash = '#/p/' + encodeURIComponent(project.id);
+    }
+    card.addEventListener('click', open);
+    card.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        open();
+      }
     });
+    return card;
+  }
+
+  // ================================================================ 作品 / 仓库列表
+
+  async function openWorks() {
+    showView('works');
+    state.project = null;
+    document.title = '作品 · Hopzz Studio';
+    try {
+      await loadAllProjects();
+    } catch (err) {
+      if (err.status === 401) return;
+      toast('作品列表加载失败：' + serverErrorText(err), 'error');
+      return;
+    }
+    renderSubNav();
+    renderWorks();
+  }
+
+  function renderWorks() {
+    var grid = $('#works-grid');
+    var empty = $('#works-empty');
+    if (!grid || !empty) return;
+    clear(grid);
+    clear(empty);
+    empty.hidden = true;
+
+    var list = publishedProjects();
+    if (state.worksType) {
+      list = list.filter(function (project) {
+        return String(project.type || 'other') === state.worksType;
+      });
+    }
+    list = list.slice().sort(function (a, b) {
+      var at = (a.publish && a.publish.at) || a.updatedAt || '';
+      var bt = (b.publish && b.publish.at) || b.updatedAt || '';
+      return String(bt).localeCompare(String(at));
+    });
+
+    setText($('#works-view .page-desc'), '已发布到 hopzz.top 的只读作品 · 共 ' + list.length + ' 个');
+
+    if (!list.length) {
+      renderEmptyState(empty, {
+        iconName: 'works',
+        text: '还没有发布的作品',
+        sub: '打开一个项目 → 右上角「分享」→ 打开「同时发布到主页作品」，就会出现在这里。'
+      });
+      return;
+    }
+
+    list.forEach(function (project) {
+      grid.appendChild(projectCard(project, { showPublish: false, showPublishDate: true }));
+    });
+  }
+
+  async function openRepoList() {
+    showView('repo');
+    state.project = null;
+    document.title = '仓库 · Hopzz Studio';
+    try {
+      await loadAllProjects();
+    } catch (err) {
+      if (err.status === 401) return;
+      toast('仓库列表加载失败：' + serverErrorText(err), 'error');
+      return;
+    }
+    renderSubNav();
+    renderRepoList();
+  }
+
+  function renderRepoList() {
+    var listBox = $('#repo-list');
+    var empty = $('#repo-list-empty');
+    if (!listBox || !empty) return;
+    clear(listBox);
+    clear(empty);
+    empty.hidden = true;
+
+    var list = state.allProjects.slice();
+    if (state.repoType) {
+      list = list.filter(function (project) {
+        return String(project.type || 'other') === state.repoType;
+      });
+    }
+    list.sort(function (a, b) {
+      return String(b.updatedAt || '').localeCompare(String(a.updatedAt || ''));
+    });
+
+    if (!list.length) {
+      renderEmptyState(empty, {
+        iconName: 'repo',
+        text: state.repoType ? '这个类型还没有项目' : '还没有仓库',
+        sub: '每个项目自带一个仓库目录，新建项目后就能上传文件了。',
+        actionText: '新建项目',
+        action: function () { openNewProject(); }
+      });
+      return;
+    }
+
+    list.forEach(function (project) {
+      var info = typeInfo(project.type);
+      var item = h('div', { class: 'repo-item' },
+        icon('folder'),
+        h('div', { class: 'repo-item-main' },
+          h('div', { class: 'repo-item-name', text: String(project.name || '未命名项目') }),
+          h('div', {
+            class: 'repo-item-meta',
+            text: info.label + ' · 工作站/' + project.id + '/ · 更新于 ' + (fmtTime(project.updatedAt) || '—')
+          })
+        ),
+        h('div', { class: 'repo-item-actions' },
+          h('button', {
+            class: 'btn btn-ghost btn-sm', type: 'button', text: '打开项目',
+            onclick: function () { location.hash = '#/p/' + encodeURIComponent(project.id); }
+          }),
+          h('button', {
+            class: 'btn btn-primary btn-sm', type: 'button', text: '浏览文件',
+            onclick: function () { location.hash = '#/p/' + encodeURIComponent(project.id) + '/repo'; }
+          })
+        )
+      );
+      listBox.appendChild(item);
+    });
+  }
+
+  // ================================================================ 设置页
+
+  async function openSettings() {
+    showView('settings');
+    state.project = null;
+    document.title = '设置 · Hopzz Studio';
+    if (!state.allProjects.length) {
+      loadAllProjects().catch(function () { /* 设置页不依赖项目列表 */ });
+    }
+    renderSettingsBody();
+    loadBackendVersion();
+  }
+
+  function loadBackendVersion() {
+    if (state.backendVersion) return;
+    api('/api/health').then(function (data) {
+      state.backendVersion = (data && data.version) ? String(data.version) : '';
+      if (state.view === 'settings' && state.settingsSection === 'about') renderSettingsBody();
+    }).catch(function () { /* ignore */ });
+  }
+
+  function renderSettingsBody() {
+    var host = $('#settings-body');
+    if (!host) return;
+    clear(host);
+    var section = state.settingsSection;
+    if (section === 'general') host.appendChild(settingsGeneral());
+    else if (section === 'appearance') host.appendChild(settingsAppearance());
+    else if (section === 'ai') host.appendChild(settingsAI());
+    else if (section === 'share') host.appendChild(settingsShare());
+    else if (section === 'account') host.appendChild(settingsAccount());
+    else host.appendChild(settingsAbout());
+  }
+
+  function settingsCard(title, desc, iconName) {
+    var card = h('section', { class: 'settings-card' },
+      h('h2', {}, icon(iconName || 'settings'), h('span', { text: title }))
+    );
+    if (desc) card.appendChild(h('p', { class: 'settings-card-desc', text: desc }));
+    return card;
+  }
+
+  function settingsRow(label, hint, control) {
+    return h('div', { class: 'settings-row' },
+      h('div', { class: 'settings-row-text' },
+        h('div', { class: 'settings-row-label', text: label }),
+        hint ? h('div', { class: 'settings-row-hint', text: hint }) : null
+      ),
+      h('div', { class: 'settings-control' }, control)
+    );
+  }
+
+  function switchControl(checked, onChange) {
+    var input = h('input', { type: 'checkbox', checked: checked, 'aria-label': '开关' });
+    var label = h('label', { class: 'switch' }, input, h('span', { class: 'switch-track' }, h('span', { class: 'switch-thumb' })));
+    input.addEventListener('change', function () { onChange(input.checked); });
+    return label;
+  }
+
+  function segmented(options, value, onPick) {
+    var box = h('div', { class: 'segmented' });
+    options.forEach(function (option) {
+      var active = option.value === value;
+      var btn = h('button', {
+        class: 'seg-btn' + (active ? ' is-active' : ''),
+        type: 'button',
+        'aria-pressed': active ? 'true' : 'false',
+        text: option.label,
+        onclick: function () { onPick(option.value); }
+      });
+      box.appendChild(btn);
+    });
+    return box;
+  }
+
+  function settingsGeneral() {
+    var card = settingsCard('常规', '新建项目与项目墙的默认行为。', 'settings');
+
+    var typeSelect = h('select', { class: 'input' });
+    TYPES.forEach(function (type) {
+      if (!type.key) return;
+      typeSelect.appendChild(h('option', {
+        value: type.key, text: type.label,
+        selected: state.settings.defaultType === type.key
+      }));
+    });
+    typeSelect.value = state.settings.defaultType;
+    typeSelect.addEventListener('change', function () {
+      updateSetting('defaultType', typeSelect.value, false);
+      toast('默认项目类型已保存', 'ok');
+    });
+    card.appendChild(settingsRow('默认项目类型', '新建项目弹窗里默认选中的类型。', typeSelect));
+
+    var sizeSelect = h('select', { class: 'input' });
+    [6, 9, 12, 18, 24].forEach(function (size) {
+      sizeSelect.appendChild(h('option', {
+        value: String(size), text: size + ' 张',
+        selected: Number(state.settings.pageSize) === size
+      }));
+    });
+    sizeSelect.value = String(state.settings.pageSize);
+    sizeSelect.addEventListener('change', function () {
+      updateSetting('pageSize', Number(sizeSelect.value) || 12, false);
+      state.wallLimit = Number(sizeSelect.value) || 12;
+      if (state.view === 'wall') renderProjectGrid();
+      toast('每页卡片数已保存', 'ok');
+    });
+    card.appendChild(settingsRow('每页卡片数', '项目墙一次显示多少张卡片，底部可「加载更多」。', sizeSelect));
+
+    card.appendChild(settingsRow('显示更新时间', '项目卡片底部显示最近更新时间。',
+      switchControl(state.settings.showUpdated !== false, function (checked) {
+        updateSetting('showUpdated', checked, false);
+        if (state.view === 'wall') renderProjectGrid();
+        toast(checked ? '已显示更新时间' : '已隐藏更新时间', 'ok');
+      })));
+
+    return card;
+  }
+
+  function settingsAppearance() {
+    var card = settingsCard('外观', '主题、毛玻璃与动态效果。', 'palette');
+
+    card.appendChild(settingsRow('主题', '默认跟随系统；也可以固定在浅色或深色。',
+      segmented([
+        { value: 'light', label: '浅色' },
+        { value: 'dark', label: '深色' },
+        { value: 'system', label: '跟随系统' }
+      ], state.settings.theme, function (value) {
+        updateSetting('theme', value);
+        toast('主题已切换', 'ok');
+      })));
+
+    card.appendChild(settingsRow('毛玻璃强度', '卡片背后的模糊程度。',
+      segmented([
+        { value: 'low', label: '低' },
+        { value: 'mid', label: '中' },
+        { value: 'high', label: '高' }
+      ], state.settings.blur, function (value) {
+        updateSetting('blur', value);
+        toast('毛玻璃强度已调整', 'ok');
+      })));
+
+    card.appendChild(settingsRow('动态效果', '卡片上浮与背景光斑漂移；关闭后完全静止。',
+      switchControl(state.settings.motion !== false, function (checked) {
+        updateSetting('motion', checked);
+        toast(checked ? '已开启动态效果' : '已关闭动态效果', 'ok');
+      })));
+
+    return card;
+  }
+
+  function settingsAI() {
+    var card = settingsCard('AI', 'AI 助手是右下角小球打开浮窗，服务商与 Key 在 AI 设置里配置。', 'ai');
+
+    card.appendChild(settingsRow('AI 服务商', 'DeepSeek / OpenAI / Moonshot 等 OpenAI 兼容接口。',
+      h('button', {
+        class: 'btn btn-primary btn-sm', type: 'button', text: '打开 AI 设置',
+        onclick: openAISettings
+      })));
+
+    card.appendChild(h('div', {
+      class: 'settings-note',
+      text: 'Key 只保存在服务端数据库（或环境变量 studio_ai_key），页面不会回显；AI 只能读取你在会话里附加的项目。'
+    }));
+
+    return card;
+  }
+
+  function settingsShare() {
+    var card = settingsCard('分享', '新建分享链接时的默认值，只影响本机浏览器。', 'share');
+
+    card.appendChild(settingsRow('默认权限', '仅浏览只能看和下载；可修改还能上传、改字段。',
+      segmented([
+        { value: 'view', label: '仅浏览' },
+        { value: 'edit', label: '可修改' }
+      ], state.settings.shareMode, function (value) {
+        updateSetting('shareMode', value, false);
+        toast('默认权限已保存', 'ok');
+      })));
+
+    var prefixInput = h('input', {
+      class: 'input',
+      type: 'text',
+      maxlength: '24',
+      placeholder: '例如 hopzz-',
+      value: state.settings.sharePrefix || ''
+    });
+    prefixInput.addEventListener('change', function () {
+      var value = String(prefixInput.value || '').trim().toLowerCase().replace(/[^a-z0-9_-]/g, '');
+      prefixInput.value = value;
+      updateSetting('sharePrefix', value, false);
+      toast('默认链接名前缀已保存', 'ok');
+    });
+    card.appendChild(settingsRow('默认链接名前缀', '新建分享链接时自动带上的前缀（小写字母/数字/-/_）。', prefixInput));
+
+    card.appendChild(h('div', {
+      class: 'settings-note',
+      text: '发布的作品会出现在 https://hopzz.top 的作品列表里，只读：发布时会自动把分享权限设为「仅浏览」并开启链接。'
+    }));
+
+    return card;
+  }
+
+  function settingsAccount() {
+    var card = settingsCard('账户', '修改访问密码，或退出当前登录。', 'oc');
+
+    var oldInput = h('input', { class: 'input', type: 'password', autocomplete: 'current-password', placeholder: '当前密码' });
+    var newInput = h('input', { class: 'input', type: 'password', autocomplete: 'new-password', placeholder: '新密码（至少 6 位）' });
+    var confirmInput = h('input', { class: 'input', type: 'password', autocomplete: 'new-password', placeholder: '再输入一次新密码' });
+    var errorEl = h('p', { class: 'form-error', role: 'alert' });
+    var submitBtn = h('button', { class: 'btn btn-primary', type: 'button', text: '修改密码' });
+
+    submitBtn.addEventListener('click', async function () {
+      setText(errorEl, '');
+      var oldPwd = oldInput.value;
+      var newPwd = newInput.value;
+      if (!oldPwd) { setText(errorEl, '请输入当前密码'); oldInput.focus(); return; }
+      if (newPwd.length < 6) { setText(errorEl, '新密码至少 6 位'); newInput.focus(); return; }
+      if (newPwd !== confirmInput.value) { setText(errorEl, '两次输入的新密码不一致'); confirmInput.focus(); return; }
+      submitBtn.disabled = true;
+      setText(submitBtn, '修改中…');
+      try {
+        await api('/api/password', { method: 'POST', json: { oldPassword: oldPwd, newPassword: newPwd } });
+        oldInput.value = '';
+        newInput.value = '';
+        confirmInput.value = '';
+        toast('密码已修改，下次用新密码登录', 'ok');
+      } catch (err) {
+        if (err.status !== 401) setText(errorEl, serverErrorText(err));
+      } finally {
+        submitBtn.disabled = false;
+        setText(submitBtn, '修改密码');
+      }
+    });
+
+    var form = h('div', { class: 'settings-form' },
+      fieldBox('当前密码', oldInput),
+      fieldBox('新密码', newInput),
+      fieldBox('确认新密码', confirmInput),
+      errorEl,
+      h('div', { class: 'settings-actions' }, submitBtn)
+    );
+    card.appendChild(form);
+
+    card.appendChild(settingsRow('退出登录', '清除本机登录状态，回到登录页。',
+      h('button', {
+        class: 'btn btn-ghost btn-sm', type: 'button', text: '退出登录',
+        onclick: function () { onLogout(); }
+      })));
+
+    return card;
+  }
+
+  function settingsAbout() {
+    var card = settingsCard('关于', 'Hopzz Studio · 个人创作工作站。', 'info');
+    var rows = h('div', { class: 'about-list' });
+
+    rows.appendChild(h('div', { class: 'about-row' }, icon('info', 'ico-sm'),
+      h('span', { text: '前端版本 v2.0.0' })));
+    rows.appendChild(h('div', { class: 'about-row' }, icon('layers', 'ico-sm'),
+      h('span', { text: '后端版本 ' + (state.backendVersion ? 'v' + state.backendVersion : '读取中…') })));
+    rows.appendChild(h('div', { class: 'about-row' }, icon('external', 'ico-sm'),
+      h('a', { href: 'https://hopzz.top', target: '_blank', rel: 'noopener', text: 'https://hopzz.top' })));
+    rows.appendChild(h('div', { class: 'about-row' }, icon('code', 'ico-sm'),
+      h('a', {
+        href: 'https://github.com/HEHE-HEHEz53/hopzz-site',
+        target: '_blank', rel: 'noopener',
+        text: 'GitHub 仓库：HEHE-HEHEz53/hopzz-site'
+      })));
+    rows.appendChild(h('div', { class: 'about-row' }, icon('repo', 'ico-sm'),
+      h('span', { text: '存储：/srv/files/工作站/<项目 ID>/（与网盘同一份文件）' })));
+
+    card.appendChild(rows);
+    card.appendChild(h('div', {
+      class: 'settings-note',
+      text: '分享出去的公开链接形如 /ll/<链接名>，随时可以在项目详情里关闭。'
+    }));
     return card;
   }
 
@@ -1189,6 +1961,8 @@
       if (!type.key) return;
       typeSelect.appendChild(h('option', { value: type.key, text: type.label }));
     });
+    typeSelect.value = TYPE_MAP[state.settings.defaultType] ? state.settings.defaultType : 'music';
+
     var tagsInput = h('input', {
       class: 'input', type: 'text', maxlength: '200',
       placeholder: '用逗号分隔，可留空', autocomplete: 'off'
@@ -1196,6 +1970,7 @@
     var modulesBox = h('div', { class: 'chip-check-list' });
     var errorEl = h('p', { class: 'form-error', role: 'alert' });
     var close = null;
+    var submitting = false;
 
     function refreshModules() {
       clear(modulesBox);
@@ -1245,6 +2020,7 @@
     });
 
     okBtn.addEventListener('click', async function () {
+      if (submitting) return;
       var name = nameInput.value.trim();
       setText(errorEl, '');
       if (!name) {
@@ -1264,6 +2040,7 @@
       var payload = { name: name, type: typeSelect.value, tags: tags };
       if (checked.length) payload.modules = checked;
 
+      submitting = true;
       okBtn.disabled = true;
       setText(okBtn, '创建中…');
       try {
@@ -1272,14 +2049,26 @@
         close();
         toast('项目已创建', 'ok');
         if (created && created.id) {
+          state.wallLimit = state.settings.pageSize;
           location.hash = '#/p/' + encodeURIComponent(created.id);
         } else {
           await openWall();
         }
       } catch (err) {
+        submitting = false;
         okBtn.disabled = false;
         setText(okBtn, '创建项目');
-        if (err.status !== 401) setText(errorEl, err.message || '创建失败');
+        if (err.status === 401) return;
+        // 把服务端返回的真实错误显示在弹窗里，并滚到可见位置
+        var message = '创建失败：' + serverErrorText(err);
+        if (err.status === 404 && /not found/i.test(String(err.message || ''))) {
+          message += ' · 请求没有到达创建接口，请检查网关 / 部署配置';
+        }
+        setText(errorEl, message);
+        if (errorEl.setAttribute) errorEl.setAttribute('data-error', '1');
+        try {
+          if (errorEl.scrollIntoView) errorEl.scrollIntoView({ block: 'nearest' });
+        } catch (e) { /* ignore */ }
       }
     });
 
@@ -1325,7 +2114,7 @@
       if (!state.project || !state.project.id) throw new HttpError(404, '项目数据异常');
     } catch (err) {
       if (err.status === 401) return;
-      toast('项目打不开：' + err.message, 'error');
+      toast('项目打不开：' + serverErrorText(err), 'error');
       location.hash = '#/wall';
       return;
     }
@@ -1354,7 +2143,7 @@
 
     if (state.detailTab === 'repo') {
       loadRepo(state.repoPath).catch(function (err) {
-        if (err.status !== 401) toast('仓库读取失败：' + err.message, 'error');
+        if (err.status !== 401) toast('仓库读取失败：' + serverErrorText(err), 'error');
       });
     }
   }
@@ -1365,14 +2154,13 @@
     var backBtn = h('button', {
       class: 'icon-btn back-btn',
       type: 'button',
-      text: '←',
       'aria-label': '返回项目墙',
       title: '返回项目墙',
       onclick: async function () {
         try { await flushSave(); } catch (err) { /* ignore */ }
         location.hash = '#/wall';
       }
-    });
+    }, icon('back'));
 
     var nameInput = h('input', {
       class: 'title-input',
@@ -1394,41 +2182,48 @@
       }
     });
 
-    var badge = h('span', { class: 'type-badge' },
-      h('span', { class: 'type-icon', text: info.icon || '◇' }),
-      info.label
-    );
+    var badge = h('span', { class: 'type-badge' }, icon(info.icon, 'ico-sm'), info.label);
+    var published = project.publish && project.publish.enabled === true;
+    var publishedBadge = published
+      ? h('span', { class: 'published-badge' }, icon('check', 'ico-sm'), '已发布到 hopzz.top')
+      : null;
 
     var saveStatus = h('span', { class: 'save-status is-saved', id: 'save-status', text: '已保存' });
 
     var shareBtn = h('button', {
       class: 'btn btn-ghost btn-sm',
       type: 'button',
-      text: '分享'
-    });
-    shareBtn.addEventListener('click', function () {
-      if (window.StudioShare && typeof window.StudioShare.open === 'function') {
-        window.StudioShare.open(project);
+      onclick: function () {
+        if (window.StudioShare && typeof window.StudioShare.open === 'function') {
+          window.StudioShare.open(project, {
+            onChanged: function (info2) {
+              if (info2 && info2.publish) {
+                project.publish = info2.publish;
+              }
+              renderDetail();
+            }
+          });
+        } else {
+          toast('分享面板没有加载', 'warn');
+        }
       }
-    });
+    }, icon('share', 'ico-sm'), h('span', { text: '分享' }));
 
     var deleteBtn = h('button', {
       class: 'btn btn-ghost btn-sm',
       type: 'button',
-      text: '删除项目'
-    });
-    deleteBtn.addEventListener('click', function () {
-      deleteCurrentProject(deleteBtn);
-    });
+      onclick: function () { deleteCurrentProject(deleteBtn); }
+    }, icon('trash', 'ico-sm'), h('span', { text: '删除项目' }));
 
     return h('div', { class: 'detail-head' },
       backBtn,
       h('div', { class: 'detail-title-block' },
-        h('div', { class: 'title-row' }, nameInput, badge),
+        h('div', { class: 'title-row' }, nameInput, badge, publishedBadge),
         buildTagStrip(project),
         h('p', {
           class: 'detail-meta',
-          text: '更新于 ' + (fmtTime(project.updatedAt) || '—') + ' · ' + project.modules.length + ' 个模块'
+          text: '更新于 ' + (fmtTime(project.updatedAt) || '—') + ' · ' + project.modules.length + ' 个模块' +
+            (published ? ' · 公开链接 /ll/' + (project.publish.slug || '') : '')
         })
       ),
       h('div', { class: 'detail-head-actions' }, saveStatus, shareBtn, deleteBtn)
@@ -1447,9 +2242,8 @@
         var removeBtn = h('button', {
           class: 'tag-remove',
           type: 'button',
-          text: '×',
           'aria-label': '移除标签 ' + tag
-        });
+        }, icon('close', 'ico-sm'));
         removeBtn.addEventListener('click', function () {
           project.tags = project.tags.filter(function (item) { return item !== tag; });
           scheduleSave({ tags: project.tags });
@@ -1549,7 +2343,7 @@
         location.hash = '#/wall';
       } catch (err) {
         btn.disabled = false;
-        if (err.status !== 401) toast('删除失败：' + err.message, 'error');
+        if (err.status !== 401) toast('删除失败：' + serverErrorText(err), 'error');
       }
     });
   }
@@ -1602,7 +2396,7 @@
       if (err.status === 401) return;
       state.pendingPatch = Object.assign({}, patch, state.pendingPatch || {});
       setSaveStatus('error', '保存失败');
-      toast('保存失败：' + err.message, 'error');
+      toast('保存失败：' + serverErrorText(err), 'error');
     }
   }
 
@@ -1618,7 +2412,6 @@
     if (!project.modules.length) {
       forms.appendChild(h('p', { class: 'hint', text: '还没有启用模块，从左侧勾选添加。' }));
     } else {
-      // 片段编辑器固定在底部
       var ordered = project.modules.filter(function (key) { return key !== 'sections'; });
       if (project.modules.indexOf('sections') >= 0) ordered.push('sections');
       ordered.forEach(function (key) {
@@ -1666,11 +2459,10 @@
     checkbox.addEventListener('change', function () {
       toggleModule(project, key, checkbox.checked, checkbox);
     });
-    var wrapper = h('label', { class: 'module-check' + (unknown ? ' is-unknown' : '') },
+    return h('label', { class: 'module-check' + (unknown ? ' is-unknown' : '') },
       checkbox,
       h('span', { class: 'module-check-label', text: label })
     );
-    return wrapper;
   }
 
   async function toggleModule(project, key, enabled, checkbox) {
@@ -1690,7 +2482,7 @@
     } catch (err) {
       checkbox.disabled = false;
       checkbox.checked = !enabled;
-      if (err.status !== 401) toast('模块操作失败：' + err.message, 'error');
+      if (err.status !== 401) toast('模块操作失败：' + serverErrorText(err), 'error');
     }
   }
 
@@ -1941,10 +2733,9 @@
         var removeBtn = h('button', {
           class: 'icon-btn danger sec-del',
           type: 'button',
-          text: '×',
           'aria-label': '删除片段',
           title: '删除片段'
-        });
+        }, icon('close', 'ico-sm'));
         removeBtn.addEventListener('click', function () {
           project.sections.splice(index, 1);
           scheduleSave({ sections: project.sections });
@@ -1960,13 +2751,12 @@
     var addBtn = h('button', {
       class: 'btn btn-ghost btn-sm',
       type: 'button',
-      text: '＋ 添加片段'
-    });
-    addBtn.addEventListener('click', function () {
-      project.sections.push({ id: newSectionId(), name: '新片段', start: 0, end: 0, notes: '' });
-      scheduleSave({ sections: project.sections });
-      rerender();
-    });
+      onclick: function () {
+        project.sections.push({ id: newSectionId(), name: '新片段', start: 0, end: 0, notes: '' });
+        scheduleSave({ sections: project.sections });
+        rerender();
+      }
+    }, icon('plus', 'ico-sm'), h('span', { text: '添加片段' }));
 
     rerender();
     editor.appendChild(h('div', { class: 'sections-head' },
@@ -1989,8 +2779,8 @@
       tabindex: '-1'
     });
     var uploadBtn = h('button', {
-      class: 'btn btn-primary btn-sm', type: 'button', text: '↑ 上传文件'
-    });
+      class: 'btn btn-primary btn-sm', type: 'button'
+    }, icon('upload', 'ico-sm'), h('span', { text: '上传文件' }));
     uploadBtn.addEventListener('click', function () { uploadInput.click(); });
     uploadInput.addEventListener('change', function () {
       var files = Array.prototype.slice.call(uploadInput.files || []);
@@ -1999,16 +2789,16 @@
     });
 
     var mkdirBtn = h('button', {
-      class: 'btn btn-ghost btn-sm', type: 'button', text: '＋ 新建文件夹'
-    });
+      class: 'btn btn-ghost btn-sm', type: 'button'
+    }, icon('plus', 'ico-sm'), h('span', { text: '新建文件夹' }));
     mkdirBtn.addEventListener('click', function () { onCreateFolder(); });
 
     var refreshBtn = h('button', {
-      class: 'btn btn-ghost btn-sm', type: 'button', text: '刷新'
-    });
+      class: 'btn btn-ghost btn-sm', type: 'button'
+    }, icon('refresh', 'ico-sm'), h('span', { text: '刷新' }));
     refreshBtn.addEventListener('click', function () {
       loadRepo(state.repoPath).catch(function (err) {
-        if (err.status !== 401) toast('刷新失败：' + err.message, 'error');
+        if (err.status !== 401) toast('刷新失败：' + serverErrorText(err), 'error');
       });
     });
 
@@ -2079,18 +2869,17 @@
     if (!nav) return;
     clear(nav);
 
-    var root = h('button', {
+    nav.appendChild(h('button', {
       class: 'crumb', type: 'button', text: '仓库根',
       onclick: function () { goRepo(''); }
-    });
-    nav.appendChild(root);
+    }));
 
     var parts = state.repoPath ? state.repoPath.split('/').filter(Boolean) : [];
     var acc = '';
     parts.forEach(function (part) {
       acc = acc ? acc + '/' + part : part;
       var target = acc;
-      nav.appendChild(h('span', { class: 'crumb-sep', text: '/' }));
+      nav.appendChild(chevronRight());
       nav.appendChild(h('button', {
         class: 'crumb', type: 'button', text: part,
         onclick: function () { goRepo(target); }
@@ -2100,7 +2889,7 @@
 
   function goRepo(path) {
     loadRepo(path).catch(function (err) {
-      if (err.status !== 401) toast('目录读取失败：' + err.message, 'error');
+      if (err.status !== 401) toast('目录读取失败：' + serverErrorText(err), 'error');
     });
   }
 
@@ -2125,15 +2914,14 @@
         var thumb = h('img', { class: 'repo-thumb', alt: '', loading: 'lazy' });
         thumb.addEventListener('error', function () {
           if (thumb.parentNode) thumb.parentNode.removeChild(thumb);
-          row.insertBefore(h('span', { class: 'repo-icon', text: KIND_ICON.image }), row.firstChild);
+          row.insertBefore(h('span', { class: 'repo-icon' }, icon('image')), row.firstChild);
         });
         thumb.src = thumbUrl(project.id, entry.path, 96);
         row.appendChild(thumb);
       } else {
         row.appendChild(h('span', {
-          class: 'repo-icon',
-          text: entry.dir ? KIND_ICON.dir : (KIND_ICON[entry.kind] || KIND_ICON.file)
-        }));
+          class: 'repo-icon'
+        }, icon(entry.dir ? KIND_ICON.dir : (KIND_ICON[entry.kind] || KIND_ICON.file))));
       }
 
       var nameBtn = h('button', {
@@ -2156,11 +2944,10 @@
 
       var actions = h('div', { class: 'repo-row-actions' });
       if (entry.dir) {
-        var openBtn = h('button', {
+        actions.appendChild(h('button', {
           class: 'btn btn-ghost btn-xs', type: 'button', text: '打开',
           onclick: function () { goRepo(entry.path); }
-        });
-        actions.appendChild(openBtn);
+        }));
       } else {
         actions.appendChild(h('a', {
           class: 'btn btn-ghost btn-xs',
@@ -2238,10 +3025,10 @@
         if (uploadList) clear(uploadList);
       }, 2600);
       return loadRepo(state.repoPath).catch(function (err) {
-        if (err.status !== 401) toast('刷新仓库失败：' + err.message, 'error');
+        if (err.status !== 401) toast('刷新仓库失败：' + serverErrorText(err), 'error');
       });
     }).catch(function (err) {
-      if (err && err.status !== 401) toast('上传中断：' + err.message, 'error');
+      if (err && err.status !== 401) toast('上传中断：' + serverErrorText(err), 'error');
     });
   }
 
@@ -2319,7 +3106,7 @@
       toast('文件夹已创建', 'ok');
       await loadRepo(state.repoPath);
     } catch (err) {
-      if (err.status !== 401) toast('新建文件夹失败：' + err.message, 'error');
+      if (err.status !== 401) toast('新建文件夹失败：' + serverErrorText(err), 'error');
     }
   }
 
@@ -2342,7 +3129,7 @@
         await loadRepo(state.repoPath);
       } catch (err) {
         btn.disabled = false;
-        if (err.status !== 401) toast('删除失败：' + err.message, 'error');
+        if (err.status !== 401) toast('删除失败：' + serverErrorText(err), 'error');
       }
     });
   }
@@ -2398,11 +3185,11 @@
         }
       }).catch(function (err) {
         if (err.status === 401) return;
-        pre.textContent = '读取失败：' + err.message;
+        pre.textContent = '读取失败：' + serverErrorText(err);
       });
     } else {
       content.appendChild(h('div', { class: 'preview-generic' },
-        h('span', { class: 'preview-generic-icon', text: KIND_ICON[kind] || KIND_ICON.file }),
+        h('span', { class: 'preview-generic-icon' }, icon(KIND_ICON[kind] || 'file')),
         h('p', { class: 'hint', text: '该类型不支持在线预览，请下载后查看。' })
       ));
     }
@@ -2462,6 +3249,13 @@
     var logoutBtn = $('#logout-btn');
     if (logoutBtn) logoutBtn.addEventListener('click', function () { onLogout(); });
 
+    var brand = $('#brand-link');
+    if (brand) {
+      brand.addEventListener('click', function () {
+        if (state.pendingPatch) flushSave();
+      });
+    }
+
     var searchInput = $('#search-input');
     if (searchInput) {
       var searchTimer = null;
@@ -2469,8 +3263,11 @@
         if (searchTimer) clearTimeout(searchTimer);
         searchTimer = setTimeout(function () {
           state.filters.q = searchInput.value.trim();
-          refreshList();
-        }, 250);
+          state.wallLimit = state.settings.pageSize;
+          applyWallFilters();
+          renderWallHead();
+          renderProjectGrid();
+        }, 220);
       });
     }
 
@@ -2481,16 +3278,34 @@
       });
     });
 
-    var brand = $('#brand-link');
-    if (brand) {
-      brand.addEventListener('click', function () {
-        if (state.pendingPatch) flushSave();
-      });
-    }
+    // 系统主题变化时，跟随系统模式要实时切换
+    try {
+      var mq = window.matchMedia('(prefers-color-scheme: dark)');
+      var onChange = function () {
+        if (state.settings.theme === 'system') applySettings();
+      };
+      if (mq.addEventListener) mq.addEventListener('change', onChange);
+      else if (mq.addListener) mq.addListener(onChange);
+    } catch (err) { /* ignore */ }
+  }
+
+  function fillStaticIcons() {
+    Array.prototype.forEach.call(document.querySelectorAll('[data-icon]'), function (el) {
+      paintIcon(el, el.getAttribute('data-icon'));
+      el.removeAttribute('data-icon');
+    });
   }
 
   async function init() {
+    applySettings();
+    fillStaticIcons();
+    var brandMark = $('#brand-mark');
+    if (brandMark) brandMark.appendChild(icon('layers', 'ico-lg'));
+    var loginBrandMark = $('#login-brand-mark');
+    if (loginBrandMark) loginBrandMark.appendChild(icon('layers', 'ico-lg'));
+    renderPrimaryNav();
     bindEvents();
+
     try {
       var setupState = await api('/api/setup-state');
       if (setupState && setupState.needsSetup === true) {
@@ -2520,7 +3335,7 @@
       await loadModules();
     } catch (err) {
       if (err.status === 401) return;
-      toast('模块清单加载失败：' + err.message, 'warn');
+      toast('模块清单加载失败：' + serverErrorText(err), 'warn');
     }
     await route();
     mountAI();
@@ -2530,4 +3345,20 @@
     if (err && err.status === 401) return;
     toast((err && err.message) || '初始化失败', 'error');
   });
+
+  // ================================================================ 对外接口（share-admin.js 复用）
+  window.StudioUI = {
+    h: h,
+    icon: icon,
+    toast: toast,
+    openModal: openModal,
+    closeAllModals: closeAllModals,
+    confirm: confirmDialog,
+    prompt: promptDialog,
+    fieldBox: fieldBox,
+    getSettings: function () { return Object.assign({}, state.settings); },
+    getProject: function () { return state.project; },
+    api: api,
+    serverErrorText: serverErrorText
+  };
 })();

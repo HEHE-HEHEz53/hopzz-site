@@ -1,7 +1,10 @@
-/* studio AI 侧栏：右下角小球 + 会话侧栏 + 项目附加 + 思维导图。
+/* studio AI 助手（浮层弹窗 v2）
  *
- * 对外只暴露 window.StudioAI = { mount, open, close }，不污染其它全局名字。
- * 所有用户/模型文本一律 textContent，绝不使用 innerHTML。
+ * 形态：右下角小球 → 居中偏右的毛玻璃浮窗（不占布局、不挤压主内容），
+ *      标题栏可拖动，右上角「最小化 / 关闭」收回小球。
+ *
+ * 对外只暴露 window.StudioAI = { mount, open, close, openSettings, isOpen }。
+ * 所有用户/模型文本一律 textContent，不使用 innerHTML。
  */
 (function () {
   'use strict';
@@ -14,138 +17,202 @@
   var PROJECT_API = '/api/projects';
   var MARKMAP_CDN = 'https://cdn.jsdelivr.net/npm/markmap-autoloader@0.18';
   var NEW_SESSION_TITLE = '新会话';
+  var SVG_NS = 'http://www.w3.org/2000/svg';
+
+  // ------------------------------------------------------------ 小图标（DOM 构建，无 innerHTML）
+
+  var ICON_PATHS = {
+    plus: ['M12 5v14', 'M5 12h14'],
+    map: ['M6 6a2.5 2.5 0 1 0 0 .01', 'M18 6a2.5 2.5 0 1 0 0 .01', 'M12 18a2.5 2.5 0 1 0 0 .01', 'M8.2 7.2 11 15.5', 'M15.8 7.2 13 15.5', 'M8.5 6h7'],
+    gear: ['M12 15.2a3.2 3.2 0 1 0 0-6.4 3.2 3.2 0 0 0 0 6.4Z', 'M19.4 15a1.7 1.7 0 0 0 .3 1.9 2 2 0 1 1-2.8 2.8 1.7 1.7 0 0 0-2.9 1.2 2 2 0 1 1-4 0 1.7 1.7 0 0 0-2.9-1.2 2 2 0 1 1-2.8-2.8A1.7 1.7 0 0 0 3 15a2 2 0 1 1 0-4 1.7 1.7 0 0 0 1.3-2.9 2 2 0 1 1 2.8-2.8A1.7 1.7 0 0 0 10 3a2 2 0 1 1 4 0 1.7 1.7 0 0 0 2.9 1.3 2 2 0 1 1 2.8 2.8A1.7 1.7 0 0 0 21 10a2 2 0 1 1 0 4 1.7 1.7 0 0 0-1.6 1Z'],
+    minus: ['M5 12h14'],
+    close: ['M6 6l12 12', 'M18 6 6 18'],
+    refresh: ['M20 12a8 8 0 1 1-2.3-5.6', 'M20 4v5h-5']
+  };
+
+  function svgIcon(name, cls) {
+    var svg = document.createElementNS(SVG_NS, 'svg');
+    svg.setAttribute('viewBox', '0 0 24 24');
+    svg.setAttribute('aria-hidden', 'true');
+    svg.setAttribute('focusable', 'false');
+    if (cls) svg.setAttribute('class', cls);
+    svg.setAttribute('fill', 'none');
+    svg.setAttribute('stroke', 'currentColor');
+    svg.setAttribute('stroke-width', '1.6');
+    svg.setAttribute('stroke-linecap', 'round');
+    svg.setAttribute('stroke-linejoin', 'round');
+    var paths = ICON_PATHS[name] || [];
+    for (var i = 0; i < paths.length; i += 1) {
+      var p = document.createElementNS(SVG_NS, 'path');
+      p.setAttribute('d', paths[i]);
+      svg.appendChild(p);
+    }
+    return svg;
+  }
+
+  // ------------------------------------------------------------ 样式（跟随 app.css 设计变量）
 
   var CSS = [
-    '.sai-root{--sai-bg:#0b1016;--sai-panel:#101821;--sai-soft:#152230;--sai-line:rgba(127,227,212,.16);',
-    '--sai-line-strong:rgba(127,227,212,.34);--sai-text:#e6f1f4;--sai-dim:#8aa0ad;--sai-accent:#7fe3d4;',
-    '--sai-accent2:#5ec8e5;--sai-danger:#ff8b8b;position:fixed;right:0;bottom:0;width:0;height:0;',
-    'z-index:2147483000;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC",',
-    '"Hiragino Sans GB","Microsoft YaHei",sans-serif;color:var(--sai-text);}',
+    '.sai-root{position:fixed;right:0;bottom:0;width:0;height:0;z-index:90;',
+    'font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hiragino Sans GB",',
+    '"Microsoft YaHei","Noto Sans SC",sans-serif;color:var(--text,#232b33);}',
     '.sai-root *{box-sizing:border-box;}',
-    '.sai-ball{position:fixed;right:22px;bottom:22px;width:48px;height:48px;padding:0;border:1px solid var(--sai-line-strong);',
-    'border-radius:50%;background:linear-gradient(145deg,#123040,#0d1a24);color:var(--sai-accent);font-size:22px;',
-    'line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center;',
-    'box-shadow:0 10px 30px rgba(0,0,0,.45),0 0 0 6px rgba(127,227,212,.05);',
-    'transition:transform .18s ease,opacity .18s ease,box-shadow .18s ease;z-index:2147483002;}',
-    '.sai-ball:hover{transform:translateY(-2px);box-shadow:0 14px 34px rgba(0,0,0,.5),0 0 0 8px rgba(127,227,212,.08);}',
-    '.sai-root.sai-open .sai-ball{opacity:0;pointer-events:none;transform:scale(.8);}',
+    '.sai-root .sai-svg{width:16px;height:16px;display:block;flex:0 0 auto;}',
+
+    '.sai-ball{position:fixed;right:22px;bottom:22px;z-index:92;width:48px;height:48px;padding:0;',
+    'border:1px solid var(--glass-line,rgba(255,255,255,.72));border-radius:50%;',
+    'background:var(--glass,rgba(255,255,255,.55));color:var(--accent,#3f8b86);font-size:20px;',
+    'display:flex;align-items:center;justify-content:center;cursor:pointer;',
+    '-webkit-backdrop-filter:blur(16px) saturate(140%);backdrop-filter:blur(16px) saturate(140%);',
+    'box-shadow:var(--shadow-pop,0 12px 30px rgba(51,65,78,.14));',
+    'transition:transform .18s ease,box-shadow .18s ease,opacity .18s ease;}',
+    '.sai-ball:hover{transform:translateY(-2px);box-shadow:var(--shadow-soft,0 18px 40px rgba(51,65,78,.14));}',
+    '.sai-root.sai-open .sai-ball{opacity:0;pointer-events:none;transform:scale(.85);}',
     '.sai-root.sai-away .sai-ball{display:none;}',
-    '.sai-panel{position:fixed;top:0;right:0;bottom:0;width:420px;max-width:100vw;display:flex;flex-direction:column;',
-    'background:var(--sai-panel);border-left:1px solid var(--sai-line);box-shadow:-18px 0 48px rgba(0,0,0,.45);',
-    'transform:translateX(102%);transition:transform .24s ease;overflow:hidden;z-index:2147483001;}',
-    '.sai-root.sai-open .sai-panel{transform:translateX(0);}',
-    '.sai-head{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:12px 14px;',
-    'border-bottom:1px solid var(--sai-line);background:linear-gradient(180deg,rgba(127,227,212,.06),transparent);}',
-    '.sai-titles{min-width:0;}',
-    '.sai-title{font-size:14px;font-weight:600;letter-spacing:.04em;}',
-    '.sai-sub{font-size:11px;color:var(--sai-dim);margin-top:2px;white-space:nowrap;overflow:hidden;',
-    'text-overflow:ellipsis;max-width:170px;}',
-    '.sai-head-acts{display:flex;align-items:center;gap:4px;flex-shrink:0;}',
-    '.sai-icon-btn{appearance:none;border:1px solid transparent;background:transparent;color:var(--sai-dim);',
-    'font-size:12px;padding:5px 7px;border-radius:8px;cursor:pointer;}',
-    '.sai-icon-btn:hover{color:var(--sai-accent);background:rgba(127,227,212,.08);border-color:var(--sai-line);}',
-    '.sai-chat{display:flex;flex-direction:column;flex:1;min-height:0;}',
-    '.sai-sec{border-bottom:1px solid var(--sai-line);padding:8px 12px;flex-shrink:0;}',
+
+    '.sai-win{position:fixed;right:28px;top:50%;transform:translateY(-50%) scale(.97);',
+    'display:flex;flex-direction:column;width:min(520px,92vw);height:min(70vh,640px);',
+    'min-height:360px;border:1px solid var(--glass-line,rgba(255,255,255,.72));border-radius:18px;',
+    'background:var(--glass-strong,rgba(255,255,255,.78));color:var(--text,#232b33);',
+    '-webkit-backdrop-filter:blur(var(--glass-blur,18px)) saturate(140%);',
+    'backdrop-filter:blur(var(--glass-blur,18px)) saturate(140%);',
+    'box-shadow:var(--shadow-soft,0 18px 40px rgba(51,65,78,.14));overflow:hidden;z-index:91;',
+    'opacity:0;pointer-events:none;transition:opacity .18s ease,transform .18s ease;}',
+    '.sai-root.sai-open .sai-win{opacity:1;pointer-events:auto;transform:translateY(-50%) scale(1);}',
+
+    '.sai-head{display:flex;align-items:center;justify-content:space-between;gap:8px;',
+    'padding:10px 12px 10px 16px;border-bottom:1px solid var(--line,rgba(35,43,51,.09));',
+    'cursor:grab;user-select:none;flex-shrink:0;}',
+    '.sai-head.sai-dragging{cursor:grabbing;}',
+    '.sai-titles{min-width:0;display:flex;align-items:baseline;gap:9px;}',
+    '.sai-title{font-size:14px;font-weight:600;letter-spacing:.01em;white-space:nowrap;}',
+    '.sai-sub{font-size:11px;color:var(--text-faint,#939ca7);white-space:nowrap;overflow:hidden;',
+    'text-overflow:ellipsis;max-width:220px;}',
+    '.sai-head-acts{display:flex;align-items:center;gap:2px;flex-shrink:0;}',
+    '.sai-win-btn{appearance:none;display:inline-flex;align-items:center;justify-content:center;',
+    'width:28px;height:28px;padding:0;border:1px solid transparent;border-radius:8px;',
+    'background:transparent;color:var(--text-faint,#939ca7);cursor:pointer;',
+    'transition:background-color .15s ease,color .15s ease,border-color .15s ease;}',
+    '.sai-win-btn:hover{border-color:var(--line-strong,rgba(35,43,51,.17));',
+    'background:var(--glass-soft,rgba(255,255,255,.42));color:var(--text,#232b33);}',
+    '.sai-win-btn.sai-close:hover{color:var(--danger,#b2543f);border-color:rgba(178,84,63,.4);}',
+
+    '.sai-chat{display:flex;flex-direction:column;flex:1;min-height:0;position:relative;}',
+    '.sai-sec{border-bottom:1px solid var(--line,rgba(35,43,51,.09));padding:7px 12px;flex-shrink:0;}',
     '.sai-sec-head{display:flex;align-items:center;justify-content:space-between;gap:6px;padding:0 2px;}',
-    '.sai-sec-title{font-size:11px;color:var(--sai-dim);letter-spacing:.08em;}',
-    '.sai-link-btn{appearance:none;border:0;background:transparent;color:var(--sai-accent);font-size:11px;',
-    'padding:2px 4px;cursor:pointer;border-radius:6px;}',
-    '.sai-link-btn:hover{background:rgba(127,227,212,.1);}',
-    '.sai-sessions{max-height:120px;overflow-y:auto;margin-top:6px;display:flex;flex-direction:column;gap:3px;}',
-    '.sai-sess{display:flex;align-items:center;gap:6px;padding:5px 7px;border-radius:8px;cursor:pointer;',
-    'border:1px solid transparent;}',
-    '.sai-sess:hover{background:rgba(127,227,212,.07);}',
-    '.sai-sess-on{background:rgba(94,200,229,.14);border-color:var(--sai-line-strong);}',
+    '.sai-sec-title{font-size:10.5px;color:var(--text-faint,#939ca7);letter-spacing:.1em;}',
+    '.sai-link-btn{appearance:none;border:0;background:transparent;color:var(--accent,#3f8b86);',
+    'font-size:11px;padding:2px 5px;cursor:pointer;border-radius:6px;}',
+    '.sai-link-btn:hover{background:var(--accent-soft,rgba(63,139,134,.11));}',
+    '.sai-sessions{max-height:96px;overflow-y:auto;margin-top:5px;display:flex;flex-direction:column;gap:2px;}',
+    '.sai-sess{display:flex;align-items:center;gap:6px;padding:4px 7px;border-radius:7px;',
+    'cursor:pointer;border:1px solid transparent;}',
+    '.sai-sess:hover{background:var(--accent-softer,rgba(63,139,134,.06));}',
+    '.sai-sess-on{background:var(--accent-soft,rgba(63,139,134,.11));border-color:var(--line-strong,rgba(35,43,51,.17));}',
     '.sai-sess-title{flex:1;min-width:0;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}',
     '.sai-sess-acts{display:flex;gap:2px;opacity:0;transition:opacity .15s ease;flex-shrink:0;}',
     '.sai-sess:hover .sai-sess-acts,.sai-sess-on .sai-sess-acts{opacity:1;}',
-    '.sai-mini{appearance:none;border:0;background:transparent;color:var(--sai-dim);font-size:11px;',
-    'padding:1px 4px;border-radius:5px;cursor:pointer;}',
-    '.sai-mini:hover{color:var(--sai-accent);background:rgba(127,227,212,.1);}',
-    '.sai-mini-danger:hover{color:var(--sai-danger);background:rgba(255,139,139,.1);}',
+    '.sai-mini{appearance:none;border:0;background:transparent;color:var(--text-faint,#939ca7);',
+    'font-size:11px;padding:1px 4px;border-radius:5px;cursor:pointer;}',
+    '.sai-mini:hover{color:var(--accent,#3f8b86);background:var(--accent-soft,rgba(63,139,134,.11));}',
+    '.sai-mini-danger:hover{color:var(--danger,#b2543f);background:var(--danger-soft,rgba(178,84,63,.1));}',
     '.sai-chips{display:flex;flex-wrap:wrap;gap:5px;margin-top:6px;}',
     '.sai-chip{display:inline-flex;align-items:center;gap:4px;padding:2px 4px 2px 8px;border-radius:99px;',
-    'border:1px solid var(--sai-line);background:rgba(94,200,229,.12);font-size:11px;color:var(--sai-text);max-width:100%;}',
+    'border:1px solid var(--line,rgba(35,43,51,.09));background:var(--accent-softer,rgba(63,139,134,.06));',
+    'font-size:11px;color:var(--text,#232b33);max-width:100%;}',
     '.sai-chip-name{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:190px;}',
-    '.sai-chip-x{appearance:none;border:0;background:transparent;color:var(--sai-dim);cursor:pointer;',
-    'font-size:13px;line-height:1;padding:0 3px;border-radius:50%;}',
-    '.sai-chip-x:hover{color:var(--sai-danger);}',
-    '.sai-picker{margin-top:6px;max-height:168px;overflow-y:auto;border:1px solid var(--sai-line);',
-    'border-radius:10px;background:rgba(7,13,19,.6);padding:4px;}',
-    '.sai-pick-row{display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:7px;',
+    '.sai-chip-x{appearance:none;border:0;background:transparent;color:var(--text-faint,#939ca7);',
+    'cursor:pointer;font-size:13px;line-height:1;padding:0 3px;border-radius:50%;}',
+    '.sai-chip-x:hover{color:var(--danger,#b2543f);}',
+    '.sai-picker{margin-top:6px;max-height:150px;overflow-y:auto;border:1px solid var(--line,rgba(35,43,51,.09));',
+    'border-radius:9px;background:var(--glass-soft,rgba(255,255,255,.42));padding:4px;}',
+    '.sai-pick-row{display:flex;align-items:center;gap:8px;padding:5px 8px;border-radius:6px;',
     'font-size:12px;cursor:pointer;}',
-    '.sai-pick-row:hover{background:rgba(127,227,212,.07);}',
-    '.sai-pick-row input{accent-color:#5ec8e5;margin:0;}',
+    '.sai-pick-row:hover{background:var(--accent-softer,rgba(63,139,134,.06));}',
+    '.sai-pick-row input{accent-color:var(--accent,#3f8b86);margin:0;}',
     '.sai-pick-name{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}',
-    '.sai-pick-type{font-size:10px;color:var(--sai-dim);}',
-    '.sai-picker-note{padding:8px;font-size:11px;color:var(--sai-dim);}',
-    '.sai-msgs{flex:1;min-height:0;overflow-y:auto;padding:12px;display:flex;flex-direction:column;gap:10px;',
-    'background:radial-gradient(120% 60% at 100% 0,rgba(94,200,229,.05),transparent 60%),var(--sai-bg);}',
-    '.sai-empty{margin:auto;max-width:240px;text-align:center;font-size:12px;line-height:1.8;color:var(--sai-dim);',
-    'white-space:pre-line;}',
+    '.sai-pick-type{font-size:10px;color:var(--text-faint,#939ca7);}',
+    '.sai-picker-note{padding:8px;font-size:11px;line-height:1.6;color:var(--text-faint,#939ca7);}',
+    '.sai-msgs{flex:1;min-height:0;overflow-y:auto;padding:12px;display:flex;flex-direction:column;gap:10px;}',
+    '.sai-empty{margin:auto;max-width:260px;text-align:center;font-size:12px;line-height:1.9;',
+    'color:var(--text-faint,#939ca7);white-space:pre-line;}',
     '.sai-msg{display:flex;flex-direction:column;gap:3px;max-width:100%;}',
     '.sai-user{align-items:flex-end;}',
     '.sai-bot{align-items:flex-start;}',
-    '.sai-who{font-size:10px;color:var(--sai-dim);padding:0 4px;}',
-    '.sai-bubble{max-width:86%;padding:8px 11px;border-radius:12px;font-size:13px;line-height:1.65;',
-    'white-space:pre-wrap;word-break:break-word;background:var(--sai-soft);border:1px solid var(--sai-line);}',
-    '.sai-user .sai-bubble{background:rgba(94,200,229,.2);border-color:rgba(94,200,229,.38);',
-    'border-bottom-right-radius:4px;}',
+    '.sai-who{font-size:10px;color:var(--text-faint,#939ca7);padding:0 4px;}',
+    '.sai-bubble{max-width:88%;padding:8px 11px;border-radius:12px;font-size:12.5px;line-height:1.7;',
+    'white-space:pre-wrap;word-break:break-word;background:var(--glass-soft,rgba(255,255,255,.42));',
+    'border:1px solid var(--line,rgba(35,43,51,.09));}',
+    '.sai-user .sai-bubble{background:var(--accent-soft,rgba(63,139,134,.11));',
+    'border-color:var(--line-strong,rgba(35,43,51,.17));border-bottom-right-radius:4px;}',
     '.sai-bot .sai-bubble{border-bottom-left-radius:4px;}',
-    '.sai-pending .sai-bubble{color:var(--sai-dim);font-style:italic;}',
-    '.sai-note{font-size:11px;line-height:1.6;padding:6px 9px;border-radius:8px;border:1px dashed var(--sai-line);',
-    'color:var(--sai-dim);white-space:pre-wrap;}',
-    '.sai-note-err{color:var(--sai-danger);border-color:rgba(255,139,139,.4);background:rgba(255,139,139,.06);}',
-    '.sai-compose{flex-shrink:0;border-top:1px solid var(--sai-line);padding:8px 12px 12px;',
-    'background:rgba(9,15,21,.85);}',
-    '.sai-status{min-height:16px;font-size:11px;color:var(--sai-dim);padding:0 2px 4px;white-space:pre-wrap;}',
-    '.sai-status-err{color:var(--sai-danger);}',
-    '.sai-input{width:100%;resize:none;min-height:40px;max-height:132px;padding:9px 11px;border-radius:10px;',
-    'border:1px solid var(--sai-line);background:#0a131b;color:var(--sai-text);font-size:13px;line-height:1.55;',
-    'font-family:inherit;outline:none;}',
-    '.sai-input:focus{border-color:var(--sai-line-strong);box-shadow:0 0 0 3px rgba(127,227,212,.08);}',
+    '.sai-pending .sai-bubble{color:var(--text-faint,#939ca7);font-style:italic;}',
+    '.sai-note{font-size:11px;line-height:1.65;padding:6px 9px;border-radius:8px;',
+    'border:1px dashed var(--line-strong,rgba(35,43,51,.17));color:var(--text-faint,#939ca7);white-space:pre-wrap;}',
+    '.sai-note-err{color:var(--danger,#b2543f);border-color:rgba(178,84,63,.4);background:var(--danger-soft,rgba(178,84,63,.1));}',
+    '.sai-compose{flex-shrink:0;border-top:1px solid var(--line,rgba(35,43,51,.09));padding:8px 12px 12px;',
+    'background:var(--glass-soft,rgba(255,255,255,.42));}',
+    '.sai-status{min-height:16px;font-size:11px;color:var(--text-faint,#939ca7);padding:0 2px 4px;white-space:pre-wrap;}',
+    '.sai-status-err{color:var(--danger,#b2543f);}',
+    '.sai-input{width:100%;resize:none;min-height:40px;max-height:120px;padding:9px 11px;border-radius:10px;',
+    'border:1px solid var(--line-strong,rgba(35,43,51,.17));background:var(--paper,#f6f4ee);',
+    'color:var(--text,#232b33);font-size:12.5px;line-height:1.6;font-family:inherit;outline:none;}',
+    '.sai-input:focus{border-color:var(--accent,#3f8b86);box-shadow:0 0 0 3px var(--accent-softer,rgba(63,139,134,.06));}',
     '.sai-send-row{display:flex;justify-content:flex-end;gap:8px;margin-top:7px;}',
-    '.sai-send{appearance:none;border:0;border-radius:9px;padding:7px 20px;cursor:pointer;font-size:13px;',
-    'font-weight:600;color:#04222a;background:linear-gradient(135deg,#7fe3d4,#5ec8e5);}',
+    '.sai-send{appearance:none;border:1px solid var(--accent,#3f8b86);border-radius:9px;padding:6px 18px;',
+    'cursor:pointer;font-size:12.5px;font-weight:600;color:var(--accent-strong,#2f736f);',
+    'background:var(--accent-soft,rgba(63,139,134,.11));}',
+    '.sai-send:hover{background:var(--accent,#3f8b86);color:var(--paper,#f6f4ee);}',
     '.sai-send:disabled{opacity:.55;cursor:default;}',
-    '.sai-page{position:absolute;inset:0;display:flex;flex-direction:column;background:var(--sai-panel);z-index:2;}',
-    '.sai-page-head{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:12px 14px;',
-    'border-bottom:1px solid var(--sai-line);}',
-    '.sai-page-title{font-size:13px;font-weight:600;letter-spacing:.04em;}',
-    '.sai-page-status{min-height:16px;font-size:11px;color:var(--sai-dim);padding:6px 14px 0;white-space:pre-wrap;}',
-    '.sai-page-status.sai-status-err,.sai-status-err{color:var(--sai-danger);}',
-    '.sai-map-body{flex:1;min-height:0;overflow:auto;padding:10px;background:var(--sai-bg);}',
-    '.sai-map-body .markmap{width:100%;height:100%;min-height:420px;}',
+
+    '.sai-page{position:absolute;inset:0;display:flex;flex-direction:column;',
+    'background:var(--glass-strong,rgba(255,255,255,.78));z-index:2;}',
+    '.sai-page-head{display:flex;align-items:center;justify-content:space-between;gap:8px;',
+    'padding:10px 14px;border-bottom:1px solid var(--line,rgba(35,43,51,.09));flex-shrink:0;}',
+    '.sai-page-title{font-size:13px;font-weight:600;letter-spacing:.02em;}',
+    '.sai-page-status{min-height:16px;font-size:11px;color:var(--text-faint,#939ca7);padding:6px 14px 0;white-space:pre-wrap;}',
+    '.sai-map-body{flex:1;min-height:0;overflow:auto;padding:10px;}',
+    '.sai-map-body .markmap{width:100%;height:100%;min-height:320px;}',
     '.sai-map-body .markmap svg{width:100%;height:100%;}',
-    '.sai-markdown{margin:0;padding:12px;border:1px solid var(--sai-line);border-radius:10px;background:#0a131b;',
-    'font-size:12px;line-height:1.7;color:var(--sai-text);white-space:pre-wrap;word-break:break-word;',
+    '.sai-markdown{margin:0;padding:12px;border:1px solid var(--line,rgba(35,43,51,.09));border-radius:10px;',
+    'background:var(--accent-softer,rgba(63,139,134,.06));font-size:11.5px;line-height:1.7;',
+    'color:var(--text,#232b33);white-space:pre-wrap;word-break:break-word;',
     'font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;}',
     '.sai-cfg-body{flex:1;min-height:0;overflow-y:auto;padding:12px 14px 20px;display:flex;flex-direction:column;gap:10px;}',
     '.sai-provider-list{display:flex;flex-direction:column;gap:6px;}',
-    '.sai-provider{appearance:none;text-align:left;border:1px solid var(--sai-line);border-radius:10px;',
-    'background:rgba(7,13,19,.6);padding:8px 10px;cursor:pointer;color:var(--sai-text);font-family:inherit;}',
-    '.sai-provider:hover{border-color:var(--sai-line-strong);}',
-    '.sai-provider-on{border-color:var(--sai-line-strong);background:rgba(94,200,229,.1);}',
+    '.sai-provider{appearance:none;text-align:left;border:1px solid var(--line,rgba(35,43,51,.09));',
+    'border-radius:10px;background:var(--glass-soft,rgba(255,255,255,.42));padding:8px 10px;',
+    'cursor:pointer;color:var(--text,#232b33);font-family:inherit;}',
+    '.sai-provider:hover{border-color:var(--accent,#3f8b86);}',
+    '.sai-provider-on{border-color:var(--accent,#3f8b86);background:var(--accent-soft,rgba(63,139,134,.11));}',
     '.sai-provider-top{display:flex;align-items:center;gap:6px;flex-wrap:wrap;font-size:12px;font-weight:600;}',
-    '.sai-provider-sub{font-size:10px;color:var(--sai-dim);margin-top:3px;word-break:break-all;}',
-    '.sai-badge{font-size:9px;font-weight:400;padding:1px 6px;border-radius:99px;border:1px solid var(--sai-line);}',
-    '.sai-badge-ok{color:#9df5d7;border-color:rgba(127,227,212,.45);background:rgba(127,227,212,.1);}',
-    '.sai-badge-no{color:var(--sai-dim);}',
-    '.sai-badge-def{color:#a9ddff;border-color:rgba(94,200,229,.4);}',
-    '.sai-form{display:flex;flex-direction:column;gap:8px;border-top:1px solid var(--sai-line);padding-top:10px;}',
-    '.sai-label{display:flex;flex-direction:column;gap:4px;font-size:11px;color:var(--sai-dim);}',
-    '.sai-field{border:1px solid var(--sai-line);border-radius:8px;background:#0a131b;color:var(--sai-text);',
-    'font-size:12px;padding:7px 9px;outline:none;font-family:inherit;}',
-    '.sai-field:focus{border-color:var(--sai-line-strong);}',
-    '.sai-check{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--sai-dim);cursor:pointer;}',
-    '.sai-check input{accent-color:#5ec8e5;margin:0;}',
-    '.sai-primary{appearance:none;border:1px solid var(--sai-line-strong);border-radius:9px;padding:7px 12px;',
-    'background:rgba(127,227,212,.14);color:var(--sai-accent);font-size:12px;font-weight:600;cursor:pointer;}',
-    '.sai-primary:hover{background:rgba(127,227,212,.22);}',
-    '.sai-hint{font-size:10px;line-height:1.6;color:var(--sai-dim);}',
+    '.sai-provider-sub{font-size:10px;color:var(--text-faint,#939ca7);margin-top:3px;word-break:break-all;}',
+    '.sai-badge{font-size:9px;font-weight:400;padding:1px 6px;border-radius:99px;',
+    'border:1px solid var(--line-strong,rgba(35,43,51,.17));}',
+    '.sai-badge-ok{color:var(--ok,#3f8a63);border-color:rgba(63,138,99,.35);background:var(--ok-soft,rgba(63,138,99,.12));}',
+    '.sai-badge-no{color:var(--text-faint,#939ca7);}',
+    '.sai-badge-def{color:var(--accent-strong,#2f736f);border-color:var(--accent,#3f8b86);}',
+    '.sai-form{display:flex;flex-direction:column;gap:8px;border-top:1px solid var(--line,rgba(35,43,51,.09));padding-top:10px;}',
+    '.sai-label{display:flex;flex-direction:column;gap:4px;font-size:11px;color:var(--text-faint,#939ca7);}',
+    '.sai-field{border:1px solid var(--line-strong,rgba(35,43,51,.17));border-radius:8px;',
+    'background:var(--paper,#f6f4ee);color:var(--text,#232b33);font-size:12px;padding:7px 9px;',
+    'outline:none;font-family:inherit;}',
+    '.sai-field:focus{border-color:var(--accent,#3f8b86);}',
+    '.sai-check{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--text-faint,#939ca7);cursor:pointer;}',
+    '.sai-check input{accent-color:var(--accent,#3f8b86);margin:0;}',
+    '.sai-primary{appearance:none;border:1px solid var(--accent,#3f8b86);border-radius:9px;padding:7px 12px;',
+    'background:var(--accent-soft,rgba(63,139,134,.11));color:var(--accent-strong,#2f736f);',
+    'font-size:12px;font-weight:600;cursor:pointer;}',
+    '.sai-primary:hover{background:var(--accent,#3f8b86);color:var(--paper,#f6f4ee);}',
+    '.sai-hint{font-size:10px;line-height:1.7;color:var(--text-faint,#939ca7);}',
     '.sai-hidden{display:none !important;}',
-    '@media (max-width:640px){.sai-panel{width:100vw;border-left:0;}.sai-ball{right:16px;bottom:16px;}',
-    '.sai-sess-acts{opacity:1;}.sai-msgs{padding-bottom:16px;}}'
+
+    '@media (max-width:640px){',
+    '.sai-win{right:12px;left:12px;width:auto;top:auto;bottom:12px;transform:none;height:min(76vh,600px);}',
+    '.sai-root.sai-open .sai-win{transform:none;}',
+    '.sai-ball{right:16px;bottom:16px;}',
+    '.sai-sess-acts{opacity:1;}',
+    '}'
   ].join('');
 
   var state = {
@@ -166,7 +233,8 @@
     settingsProviderId: '',
     markmapText: '',
     markmapPromise: null,
-    keyHintShown: false
+    keyHintShown: false,
+    drag: null
   };
 
   var refs = {};
@@ -190,6 +258,15 @@
     if (title) {
       node.title = title;
     }
+    return node;
+  }
+
+  function iconButton(iconName, title, cls) {
+    var node = make('button', 'sai-win-btn' + (cls ? ' ' + cls : ''));
+    node.type = 'button';
+    node.title = title;
+    node.setAttribute('aria-label', title);
+    node.appendChild(svgIcon(iconName));
     return node;
   }
 
@@ -484,7 +561,7 @@
     }
     clear(refs.sessions);
     if (!state.sessions.length) {
-      refs.sessions.appendChild(make('div', 'sai-picker-note', '还没有会话，点右上角「新会话」。'));
+      refs.sessions.appendChild(make('div', 'sai-picker-note', '还没有会话，点右上角「＋」。'));
       return;
     }
     for (var i = 0; i < state.sessions.length; i += 1) {
@@ -1035,6 +1112,68 @@
     }
   }
 
+  // ------------------------------------------------------------ 拖动
+
+  function clampPosition(left, top) {
+    var rect = refs.win.getBoundingClientRect();
+    var maxLeft = Math.max(0, window.innerWidth - Math.min(rect.width, window.innerWidth));
+    var maxTop = Math.max(0, window.innerHeight - Math.min(rect.height, window.innerHeight));
+    return {
+      left: Math.min(Math.max(0, left), maxLeft),
+      top: Math.min(Math.max(0, top), maxTop)
+    };
+  }
+
+  function stopDrag() {
+    if (!state.drag) {
+      return;
+    }
+    state.drag = null;
+    if (refs.head) refs.head.classList.remove('sai-dragging');
+    document.removeEventListener('pointermove', onDragMove);
+    document.removeEventListener('pointerup', stopDrag);
+    document.removeEventListener('pointercancel', stopDrag);
+  }
+
+  function onDragMove(ev) {
+    if (!state.drag || !refs.win) {
+      return;
+    }
+    var pos = clampPosition(ev.clientX - state.drag.dx, ev.clientY - state.drag.dy);
+    refs.win.style.left = pos.left + 'px';
+    refs.win.style.top = pos.top + 'px';
+  }
+
+  function startDrag(ev) {
+    if (!refs.win) {
+      return;
+    }
+    if (ev.button !== undefined && ev.button !== 0) {
+      return;
+    }
+    var target = ev.target;
+    // 标题栏上的按钮不触发拖动
+    var node = target;
+    while (node && node !== refs.head) {
+      if (node.tagName === 'BUTTON') {
+        return;
+      }
+      node = node.parentNode;
+    }
+    var rect = refs.win.getBoundingClientRect();
+    refs.win.style.left = rect.left + 'px';
+    refs.win.style.top = rect.top + 'px';
+    refs.win.style.right = 'auto';
+    refs.win.style.bottom = 'auto';
+    refs.win.style.transform = 'none';
+    state.drag = { dx: ev.clientX - rect.left, dy: ev.clientY - rect.top };
+    if (refs.head) refs.head.classList.add('sai-dragging');
+    document.addEventListener('pointermove', onDragMove);
+    document.addEventListener('pointerup', stopDrag);
+    document.addEventListener('pointercancel', stopDrag);
+    if (ev.preventDefault) ev.preventDefault();
+  }
+
   // ------------------------------------------------------------ 构建 DOM
 
   function ensureBuilt() {
@@ -1055,8 +1194,11 @@
     root.id = 'studio-ai-root';
 
     // 小球
-    var ball = button('sai-ball', '🐋', '打开 AI 助手');
+    var ball = make('button', 'sai-ball');
+    ball.type = 'button';
     ball.setAttribute('aria-label', '打开 AI 助手');
+    ball.title = '打开 AI 助手';
+    ball.textContent = 'AI';
     ball.addEventListener('click', function () {
       if (state.open) {
         closePanel();
@@ -1065,27 +1207,34 @@
       }
     });
 
-    // 面板
-    var panel = make('aside', 'sai-panel');
-    panel.setAttribute('aria-hidden', 'true');
+    // 浮窗
+    var win = make('div', 'sai-win');
+    win.setAttribute('role', 'dialog');
+    win.setAttribute('aria-modal', 'false');
+    win.setAttribute('aria-label', 'AI 助手');
+    win.setAttribute('aria-hidden', 'true');
 
     var head = make('div', 'sai-head');
+    head.title = '拖动这里移动窗口';
     var titles = make('div', 'sai-titles');
     var title = make('div', 'sai-title', 'AI 助手');
     var sub = make('div', 'sai-sub', '正在加载…');
     titles.appendChild(title);
     titles.appendChild(sub);
     var headActs = make('div', 'sai-head-acts');
-    var btnNew = button('sai-icon-btn', '新会话', '新建会话');
-    var btnMap = button('sai-icon-btn', '导图', '把当前会话生成思维导图');
-    var btnCfg = button('sai-icon-btn', '设置', 'AI 服务商设置');
-    var btnClose = button('sai-icon-btn', '收起', '收起面板');
+    var btnNew = iconButton('plus', '新建会话');
+    var btnMap = iconButton('map', '把当前会话生成思维导图');
+    var btnCfg = iconButton('gear', 'AI 服务商设置');
+    var btnMin = iconButton('minus', '最小化（收回小球）');
+    var btnClose = iconButton('close', '关闭（收回小球）', 'sai-close');
     headActs.appendChild(btnNew);
     headActs.appendChild(btnMap);
     headActs.appendChild(btnCfg);
+    headActs.appendChild(btnMin);
     headActs.appendChild(btnClose);
     head.appendChild(titles);
     head.appendChild(headActs);
+    head.addEventListener('pointerdown', startDrag);
 
     // 会话列表
     var sessionsSec = make('div', 'sai-sec');
@@ -1206,17 +1355,18 @@
     cfgPage.appendChild(cfgHead);
     cfgPage.appendChild(cfgBody);
 
-    panel.appendChild(head);
-    panel.appendChild(chat);
-    panel.appendChild(mapPage);
-    panel.appendChild(cfgPage);
+    win.appendChild(head);
+    win.appendChild(chat);
+    win.appendChild(mapPage);
+    win.appendChild(cfgPage);
     root.appendChild(ball);
-    root.appendChild(panel);
+    root.appendChild(win);
     document.body.appendChild(root);
 
     refs.root = root;
     refs.ball = ball;
-    refs.panel = panel;
+    refs.win = win;
+    refs.head = head;
     refs.sub = sub;
     refs.sessions = sessions;
     refs.chips = chips;
@@ -1247,6 +1397,7 @@
     btnCfg.addEventListener('click', function () {
       setPage('settings');
     });
+    btnMin.addEventListener('click', closePanel);
     btnClose.addEventListener('click', closePanel);
     btnRefresh.addEventListener('click', function () {
       state.loaded = false;
@@ -1273,6 +1424,15 @@
       if (ev.key === 'Escape' && state.open) {
         closePanel();
       }
+    });
+    window.addEventListener('resize', function () {
+      if (!refs.win || !refs.win.style.left) {
+        return;
+      }
+      var rect = refs.win.getBoundingClientRect();
+      var pos = clampPosition(rect.left, rect.top);
+      refs.win.style.left = pos.left + 'px';
+      refs.win.style.top = pos.top + 'px';
     });
 
     renderMessages();
@@ -1307,7 +1467,7 @@
     }
     state.open = true;
     refs.root.classList.add('sai-open');
-    refs.panel.setAttribute('aria-hidden', 'false');
+    refs.win.setAttribute('aria-hidden', 'false');
     setPage('chat');
     ensureLoaded();
     window.setTimeout(function () {
@@ -1317,18 +1477,46 @@
     }, 80);
   }
 
+  function openSettingsPage() {
+    if (!mount(document.body)) {
+      return;
+    }
+    state.open = true;
+    refs.root.classList.add('sai-open');
+    refs.win.setAttribute('aria-hidden', 'false');
+    // 先等数据加载完：ensureLoaded() 里可能会自动 selectSession 并切回聊天页，
+    // 所以要在它之后再切到设置页，避免刚打开就被顶回去。
+    ensureLoaded().then(function () {
+      setPage('settings');
+      renderSettings();
+    });
+  }
+
   function closePanel() {
     state.open = false;
     if (refs.root) {
       refs.root.classList.remove('sai-open');
-      refs.panel.setAttribute('aria-hidden', 'true');
+      refs.win.setAttribute('aria-hidden', 'true');
+    }
+  }
+
+  // 登录页 / 登出后完全隐藏小球；登录成功 mount() 时恢复
+  function hideAll() {
+    closePanel();
+    if (refs.root) {
+      refs.root.classList.add('sai-away');
     }
   }
 
   window.StudioAI = {
     mount: mount,
     open: openPanel,
-    close: closePanel
+    openSettings: openSettingsPage,
+    close: closePanel,
+    hide: hideAll,
+    isOpen: function () {
+      return !!state.open;
+    }
   };
 
   // 页面就绪后先把 DOM 挂好（小球暂时隐藏，避免出现在登录页）；

@@ -1,20 +1,36 @@
 <!doctype html>
-<html lang="zh-CN">
+<html lang="zh-CN" data-theme="light">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="color-scheme" content="dark">
-  <meta name="theme-color" content="#0a2e58">
+  <meta name="color-scheme" content="light dark">
+  <meta name="theme-color" content="#f6f4ee">
   <meta name="robots" content="noindex, nofollow">
   <title>Hopzz Studio · 创作工作站</title>
-  <link rel="stylesheet" href="/static/app.css?v=1">
+  <script>
+    /* 首屏前应用主题，避免闪白/闪黑（只读 localStorage，不含业务逻辑） */
+    (function () {
+      try {
+        var raw = localStorage.getItem('studio.settings.v1');
+        var s = raw ? JSON.parse(raw) : {};
+        var theme = s.theme || 'light';
+        if (theme === 'system') {
+          theme = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+        }
+        document.documentElement.dataset.theme = theme;
+        document.documentElement.dataset.blur = s.blur || 'mid';
+        document.documentElement.dataset.motion = s.motion === false ? 'off' : 'on';
+      } catch (err) { /* 忽略 */ }
+    })();
+  </script>
+  <link rel="stylesheet" href="/static/app.css?v=2">
 </head>
-<body>
+<body class="studio-body">
   <!-- 登录 / 首次设置密码 -->
   <div id="login-view" class="login-view" hidden>
-    <form id="login-form" class="login-card" autocomplete="on" novalidate>
+    <form id="login-form" class="login-card glass" autocomplete="on" novalidate>
       <div class="login-brand">
-        <span class="brand-mark" aria-hidden="true">◈</span>
+        <span class="brand-mark" id="login-brand-mark" aria-hidden="true"></span>
         <div class="login-brand-text">
           <strong>Hopzz Studio</strong>
           <span class="login-brand-sub">创作工作站</span>
@@ -31,70 +47,95 @@
         <input id="login-confirm" class="input" type="password" minlength="6"
                maxlength="128" autocomplete="new-password" placeholder="再输入一次">
       </label>
-      <p id="login-error" class="login-error" role="alert"></p>
+      <p id="login-error" class="form-error login-error" role="alert"></p>
       <button id="login-submit" class="btn btn-primary btn-block" type="submit">进入工作室</button>
-      <p class="login-foot">深海军蓝 · 冰青 · 一个人用就够了</p>
+      <p class="login-foot">仓库与网盘同一份文件 · 一个人用就够了</p>
     </form>
   </div>
 
   <!-- 主界面 -->
   <div id="main-view" class="main-view" hidden>
-    <header class="topbar">
-      <a class="brand" id="brand-link" href="#/wall">
-        <span class="brand-mark" aria-hidden="true">◈</span>
+    <header class="topbar" id="topbar">
+      <a class="brand" id="brand-link" href="#/wall" aria-label="回到项目">
+        <span class="brand-mark" id="brand-mark" aria-hidden="true"></span>
         <span class="brand-text">
           <strong>Hopzz Studio</strong>
           <span class="brand-sub">创作工作站</span>
         </span>
       </a>
+      <nav class="primary-nav" id="primary-nav" aria-label="主导航"></nav>
       <div class="topbar-actions">
         <button id="new-project-btn" class="btn btn-primary" type="button">
-          <span class="btn-plus" aria-hidden="true">＋</span><span class="btn-label">新建项目</span>
+          <span class="ico-slot" data-icon="plus" aria-hidden="true"></span>
+          <span class="btn-label">新建项目</span>
         </button>
-        <button id="logout-btn" class="btn btn-ghost" type="button">退出</button>
+        <button id="logout-btn" class="btn btn-ghost btn-icon" type="button" title="退出登录" aria-label="退出登录">
+          <span class="ico-slot" data-icon="logout" aria-hidden="true"></span>
+        </button>
       </div>
     </header>
 
-    <!-- 项目墙 -->
-    <div id="wall-view" class="view wall-view" hidden>
-      <div class="wall-layout">
-        <aside class="sidebar">
-          <label class="field search-field">
-            <span class="field-label">搜索</span>
-            <input id="search-input" class="input" type="search" placeholder="项目名 / 标签 / 摘要"
-                   maxlength="80" autocomplete="off">
-          </label>
-          <div class="sidebar-block">
-            <h2 class="sidebar-title">类型</h2>
-            <div id="type-nav" class="type-nav"></div>
-          </div>
-          <div class="sidebar-block">
-            <h2 class="sidebar-title">标签</h2>
-            <div id="tag-filter" class="tag-filter"></div>
-          </div>
-        </aside>
-        <main class="wall-main">
-          <div class="wall-head">
-            <h1 id="wall-title" class="wall-title">全部项目</h1>
-            <p id="wall-count" class="wall-count"></p>
-          </div>
-          <div id="project-grid" class="project-grid"></div>
-          <div id="wall-empty" class="empty-state" hidden></div>
-        </main>
-      </div>
-    </div>
+    <nav class="subnav" id="subnav" aria-label="二级导航"></nav>
 
-    <!-- 项目详情（编辑 / 仓库 / 预览由 app.js 渲染） -->
-    <div id="detail-view" class="view detail-view" hidden></div>
+    <main class="content" id="view-root">
+      <!-- 项目墙 -->
+      <section id="wall-view" class="view wall-view" hidden>
+        <div class="wall-toolbar">
+          <label class="search-box" for="search-input">
+            <span class="ico-slot" data-icon="search" aria-hidden="true"></span>
+            <input id="search-input" class="search-input" type="search"
+                   placeholder="搜索项目名 / 标签 / 摘要" maxlength="80" autocomplete="off">
+          </label>
+          <div class="wall-meta">
+            <span id="wall-count" class="wall-count"></span>
+          </div>
+        </div>
+        <div id="tag-filter" class="tag-filter" hidden></div>
+        <div id="project-grid" class="project-grid"></div>
+        <div id="wall-empty" class="empty-state" hidden></div>
+        <div class="load-more-wrap"><button id="load-more-btn" class="btn btn-ghost" type="button" hidden>加载更多</button></div>
+      </section>
+
+      <!-- 作品（已发布到主站） -->
+      <section id="works-view" class="view works-view" hidden>
+        <div class="section-head">
+          <h1 class="page-title">作品</h1>
+          <p class="page-desc">已发布到 <a href="https://hopzz.top" target="_blank" rel="noopener">hopzz.top</a> 的只读作品，公开链接可直接分享。</p>
+        </div>
+        <div id="works-grid" class="project-grid"></div>
+        <div id="works-empty" class="empty-state" hidden></div>
+      </section>
+
+      <!-- 仓库 -->
+      <section id="repo-list-view" class="view repo-list-view" hidden>
+        <div class="section-head">
+          <h1 class="page-title">仓库</h1>
+          <p class="page-desc">每个项目的目录就是网盘 <code>工作站/&lt;项目 ID&gt;/</code>，不做复制、不做同步。</p>
+        </div>
+        <div id="repo-list" class="repo-list"></div>
+        <div id="repo-list-empty" class="empty-state" hidden></div>
+      </section>
+
+      <!-- 设置 -->
+      <section id="settings-view" class="view settings-view" hidden>
+        <div class="section-head">
+          <h1 class="page-title">设置</h1>
+          <p class="page-desc">偏好只保存在这台设备的浏览器里（localStorage），不会上传服务器。</p>
+        </div>
+        <div class="settings-body" id="settings-body"></div>
+      </section>
+
+      <!-- 项目详情（编辑 / 仓库 / 预览由 app.js 渲染） -->
+      <section id="detail-view" class="view detail-view" hidden></section>
+    </main>
   </div>
 
   <div id="modal-root" class="modal-root" hidden></div>
   <div id="toast-root" class="toast-root" aria-live="polite"></div>
 
-  <!-- ai.js 由 studio-ai 提供，只暴露 window.StudioAI；不存在时 app.js 直接忽略 -->
-  <link rel="stylesheet" href="/static/public.css?v=1">
-  <script src="/static/share-admin.js?v=1" defer></script>
-  <script src="/static/ai.js?v=1" defer></script>
-  <script src="/static/app.js?v=1" defer></script>
+  <!-- ai.js 只暴露 window.StudioAI；不存在时 app.js 直接忽略 -->
+  <script src="/static/share-admin.js?v=2" defer></script>
+  <script src="/static/ai.js?v=2" defer></script>
+  <script src="/static/app.js?v=2" defer></script>
 </body>
 </html>
