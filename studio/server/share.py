@@ -327,3 +327,47 @@ def public_patch(slug: str, body: dict = Body(default={})) -> Any:
     data.pop("share", None)  # 不能通过公开链接改分享设置
     _write(pid, data)
     return {"ok": True, "project": {"name": data.get("name"), "fields": data.get("fields", {}), "sections": data.get("sections", [])}}
+# ---------------------------------------------------------------- 发布到主站作品列表
+
+@router.post("/api/projects/{project_id}/publish")
+def publish_project(project_id: str, body: dict = Body(default={})) -> Any:
+    """把项目提交到主站 hopzz.top 的作品列表（只读展示，跳到 /ll/{slug}）。"""
+    data = _read(project_id)
+    share = _share_of(data)
+    slug = str(body.get("slug") or share.get("slug") or "").strip().lower()
+    if not slug:
+        slug = project_id  # 项目 id 本身符合 slug 规则
+    if not SLUG_RE.match(slug):
+        raise HTTPException(status_code=400, detail="链接名格式不对")
+    if _slug_taken(slug, project_id):
+        raise HTTPException(status_code=409, detail="这个链接名已经被别的项目用了")
+    data["share"] = {"slug": slug, "mode": "view", "enabled": True, "updatedAt": core.now_iso()}
+    data["publish"] = {"enabled": True, "at": core.now_iso(), "slug": slug}
+    _write(project_id, data)
+    return {"ok": True, "publish": data["publish"], "url": f"/ll/{slug}"}
+
+
+@router.delete("/api/projects/{project_id}/publish")
+def unpublish_project(project_id: str) -> Any:
+    data = _read(project_id)
+    publish = data.get("publish") or {}
+    publish["enabled"] = False
+    publish["at"] = core.now_iso()
+    data["publish"] = publish
+    _write(project_id, data)
+    return {"ok": True, "publish": publish}
+
+
+@router.get("/api/projects/{project_id}/publish")
+def get_publish(project_id: str) -> Any:
+    data = _read(project_id)
+    publish = data.get("publish") or {}
+    share = _share_of(data)
+    return {
+        "ok": True,
+        "publish": {
+            "enabled": bool(publish.get("enabled")),
+            "slug": publish.get("slug") or share.get("slug", ""),
+            "at": publish.get("at", ""),
+        },
+    }

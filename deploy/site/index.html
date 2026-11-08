@@ -163,10 +163,10 @@
             HEHE，也叫 HEHEz53。
           </p>
           <p>
-            做编曲、词曲、绘画、代码和视频。都在学，习惯一边查资料一边做。
+            编曲、词曲、绘画、代码、视频。
           </p>
           <p>
-            这个站是 DeepSeek 的鲸鱼娘写的。我负责说要什么，以及挑毛病。
+            作品和工作过程都放在这边。
           </p>
 
           <p class="about__sign">— HEHE</p>
@@ -184,11 +184,11 @@
             </div>
             <div>
               <dt>工具</dt>
-              <dd>终端 · 一点 Python</dd>
+              <dd>DAW · 画板 · 编辑器</dd>
             </div>
             <div>
-              <dt>状态</dt>
-              <dd><span class="badge">社恐 · 回复慢</span></dd>
+              <dt>仓库</dt>
+              <dd><a class="facts__link" href="https://github.com/HEHE-HEHEz53/hopzz-site" target="_blank" rel="noopener noreferrer">GitHub</a></dd>
             </div>
           </dl>
         </aside>
@@ -200,53 +200,14 @@
       <div class="section__head reveal">
         <span class="section__no">02</span>
         <div class="section__headings">
-          <p class="section__kicker">Directions</p>
-          <h2 class="section__title">作品方向</h2>
+          <p class="section__kicker">Works</p>
+          <h2 class="section__title">作品</h2>
         </div>
-        <p class="section__desc">五个方向，都在学。没有成品的时候，就先写在这里。</p>
+        <p class="section__desc">已发布的作品，点开可以看内容和文件。</p>
       </div>
 
-      <div class="works works--directions">
-        <article class="work work--dir reveal">
-          <div class="work__plate work__plate--a" aria-hidden="true">
-            <span class="work__no">01</span>
-          </div>
-          <h3>编曲</h3>
-          <p class="work__desc">用 DAW 编曲，自学中。</p>
-        </article>
-
-        <article class="work work--dir reveal">
-          <div class="work__plate work__plate--b" aria-hidden="true">
-            <span class="work__no">02</span>
-          </div>
-          <h3>词曲</h3>
-          <p class="work__desc">写词，也写旋律。</p>
-        </article>
-
-        <article class="work work--dir reveal">
-          <div class="work__plate work__plate--c" aria-hidden="true">
-            <span class="work__no">03</span>
-          </div>
-          <h3>绘画</h3>
-          <p class="work__desc">板绘为主，偏水彩。</p>
-        </article>
-
-        <article class="work work--dir reveal">
-          <div class="work__plate work__plate--d" aria-hidden="true">
-            <span class="work__no">04</span>
-          </div>
-          <h3>代码</h3>
-          <p class="work__desc">Python 和前端，边做边查。</p>
-        </article>
-
-        <article class="work work--dir reveal">
-          <div class="work__plate work__plate--e" aria-hidden="true">
-            <span class="work__no">05</span>
-          </div>
-          <h3>视频</h3>
-          <p class="work__desc">剪辑与调色。</p>
-        </article>
-      </div>
+            <div class="works" id="worksGrid"></div>
+      <p class="works__empty" id="worksEmpty" hidden>还没有发布的作品。</p>
     </section>
 
     <!-- ===== 03 实时数据 ===== -->
@@ -380,11 +341,28 @@
         <div class="contact__links">
           <a class="btn btn--primary" href="mailto:hehez53@foxmail.com">hehez53@foxmail.com</a>
           <a class="btn btn--ghost" href="https://qm.qq.com/q/Woby5zUzuu" target="_blank" rel="noopener noreferrer">QQ</a>
+          <a class="btn btn--ghost contact-github" href="https://github.com/HEHE-HEHEz53/hopzz-site" target="_blank" rel="noopener noreferrer">GitHub</a>
         </div>
       </div>
     </section>
   </main>
 
+  <!-- ===== 支付弹窗：手机点按钮，电脑扫二维码 ===== -->
+  <div class="pay-layer" id="payLayer" hidden>
+    <div class="pay-backdrop" id="payBackdrop"></div>
+    <div class="pay-card" role="dialog" aria-modal="true" aria-labelledby="payTitle">
+      <button class="pay-close" id="payClose" type="button" aria-label="关闭">×</button>
+      <p class="pay-kicker">Support</p>
+      <h3 class="pay-title" id="payTitle">扫码或点击支付</h3>
+      <p class="pay-plan" id="payPlan"></p>
+      <div class="pay-qr">
+        <img id="payQr" alt="支付二维码" width="220" height="220" />
+      </div>
+      <a class="btn btn--primary pay-open" id="payOpen" target="_blank" rel="noopener noreferrer">打开支付宝支付</a>
+      <p class="pay-note">手机点上面的按钮，电脑扫二维码。付款完成后回到本页点「刷新权益」。</p>
+      <button class="linkbtn pay-refresh" id="payRefresh" type="button">已支付，刷新权益</button>
+    </div>
+  </div>
   <footer class="foot">
     <div class="foot__inner">
       <p>© <span id="year">2026</span> HEHEz53</p>

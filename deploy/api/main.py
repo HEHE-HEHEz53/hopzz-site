@@ -968,3 +968,87 @@ if __name__ == "__main__":
     import uvicorn
 
     uvicorn.run(app, host="127.0.0.1", port=8000)
+
+# =====================================================================
+# 作品列表：读取 studio 仓库里「已发布」的项目（只读展示）
+# =====================================================================
+STUDIO_ROOT = Path(os.getenv("STUDIO_ROOT", "/srv/files/工作站"))
+STUDIO_BASE = os.getenv("STUDIO_BASE", "https://studio.hopzz.top").rstrip("/")
+
+_IMAGE_EXT = {".jpg", ".jpeg", ".png", ".webp", ".gif", ".avif", ".bmp"}
+
+
+def _find_cover(project_dir: Path) -> str:
+    """在项目目录里找一张能当封面的图（最多扫 200 个文件）。"""
+    count = 0
+    for root, _dirs, files in os.walk(project_dir):
+        for name in sorted(files):
+            count += 1
+            if count > 200:
+                return ""
+            if Path(name).suffix.lower() in _IMAGE_EXT:
+                full = Path(root) / name
+                try:
+                    rel = full.relative_to(project_dir).as_posix()
+                except ValueError:
+                    continue
+                return rel
+    return ""
+
+
+@app.get("/api/works")
+def works_route() -> dict[str, Any]:
+    items: list[dict[str, Any]] = []
+    if STUDIO_ROOT.exists():
+        for entry in sorted(STUDIO_ROOT.iterdir()):
+            if not entry.is_dir():
+                continue
+            project_file = entry / "project.json"
+            if not project_file.exists():
+                continue
+            try:
+                data = json.loads(project_file.read_text(encoding="utf-8"))
+            except Exception:
+                continue
+            publish = data.get("publish") or {}
+            if not publish.get("enabled"):
+                continue
+            share = data.get("share") or {}
+            slug = publish.get("slug") or share.get("slug") or entry.name
+            cover_rel = _find_cover(entry)
+            items.append({
+                "id": entry.name,
+                "name": data.get("name") or "未命名",
+                "type": data.get("type") or "other",
+                "summary": data.get("summary") or "",
+                "tags": data.get("tags") or [],
+                "updatedAt": data.get("updatedAt") or "",
+                "url": f"{STUDIO_BASE}/ll/{slug}",
+                "cover": (
+                    f"{STUDIO_BASE}/ll/{slug}/api/file?path={urllib.parse.quote(cover_rel)}"
+                    if cover_rel else ""
+                ),
+            })
+    items.sort(key=lambda item: item.get("updatedAt") or "", reverse=True)
+    return {"ok": True, "works": items}
+
+
+@app.get("/api/sponsor/qr")
+def sponsor_qr(data: str = Query(..., min_length=8, max_length=1024)) -> Response:
+    """把支付链接渲染成二维码 PNG（服务端生成，前端不用引第三方库）。"""
+    if not data.startswith("https://"):
+        raise HTTPException(status_code=400, detail="只支持 https 链接")
+    try:
+        import qrcode  # 延迟导入，缺依赖时给明确提示
+    except ImportError:
+        raise HTTPException(status_code=503, detail="服务端缺少 qrcode 依赖：pip install qrcode[pil]")
+    import io
+
+    img = qrcode.make(data, box_size=8, border=2)
+    buf = io.BytesIO()
+    img.save(buf, format="PNG")
+    return Response(
+        content=buf.getvalue(),
+        media_type="image/png",
+        headers={"Cache-Control": "no-store"},
+    )

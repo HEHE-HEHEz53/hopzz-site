@@ -1,0 +1,51 @@
+﻿<!DOCTYPE html>
+<html lang="zh-CN"><head>
+  <meta charset="utf-8">
+  <title>Hopzz Studio · 创作工作站</title>
+</head>
+<body>
+  <div id="login-view" class="login-view" hidden="">
+    <form id="login-form"><input id="login-password"><input id="login-confirm"><p id="login-error"></p><button id="login-submit" type="submit"></button></form>
+  </div>
+  <div id="main-view">
+    <header class="topbar">
+      <a id="brand-link" href="#/wall"><span class="brand-mark"></span></a>
+      <button id="new-project-btn" type="button">新建项目</button>
+      <button id="logout-btn" type="button">退出</button>
+    </header>
+    <div id="wall-view">
+      <input id="search-input">
+      <div id="type-nav"><button class="type-btn is-active" type="button" aria-pressed="true"><span class="type-icon">◇</span><span class="type-label">全部</span><span class="type-count">0</span></button><button class="type-btn" type="button" aria-pressed="false"><span class="type-icon">♪</span><span class="type-label">音乐</span><span class="type-count">0</span></button><button class="type-btn" type="button" aria-pressed="false"><span class="type-icon">✎</span><span class="type-label">歌词</span><span class="type-count">0</span></button><button class="type-btn" type="button" aria-pressed="false"><span class="type-icon">✦</span><span class="type-label">绘画</span><span class="type-count">0</span></button><button class="type-btn" type="button" aria-pressed="false"><span class="type-icon">⌘</span><span class="type-label">代码</span><span class="type-count">0</span></button><button class="type-btn" type="button" aria-pressed="false"><span class="type-icon">▶</span><span class="type-label">视频</span><span class="type-count">0</span></button><button class="type-btn" type="button" aria-pressed="false"><span class="type-icon">❧</span><span class="type-label">剧情</span><span class="type-count">0</span></button><button class="type-btn" type="button" aria-pressed="false"><span class="type-icon">◉</span><span class="type-label">世界观</span><span class="type-count">0</span></button><button class="type-btn" type="button" aria-pressed="false"><span class="type-icon">☺</span><span class="type-label">OC</span><span class="type-count">0</span></button><button class="type-btn" type="button" aria-pressed="false"><span class="type-icon">⋯</span><span class="type-label">其他</span><span class="type-count">0</span></button></div><div id="tag-filter"><button class="tag-chip tag-btn is-active" type="button">全部标签</button><span class="tag-empty">暂无标签</span></div>
+      <h1 id="wall-title">全部项目</h1><p id="wall-count"></p>
+      <div id="project-grid"></div><div id="wall-empty"><span class="empty-icon">◇</span><p class="empty-text">还没有项目，先新建一个吧</p><button class="btn btn-primary" type="button">新建第一个项目</button></div>
+    </div>
+    <div id="detail-view" hidden=""></div>
+  </div>
+  <div id="modal-root" hidden=""></div>
+  <div id="toast-root"></div>
+  <pre id="probe-log">=== init: hash=#/wall
+main-view hidden=false
+errors(init)=[]
+newBtn=true
+--- modal open: hidden=false
+nodes=DIV.modal-overlay | DIV.modal | DIV.modal-head | H2.modal-title | BUTTON.icon-btn.modal-close | DIV.modal-body | DIV | LABEL.field | SPAN.field-label | INPUT.input | LABEL.field | SPAN.field-label | SELECT.input | OPTION | OPTION | OPTION | OPTION | OPTION | OPTION | OPTION | OPTION | OPTION | LABEL.field | SPAN.field-label | INPUT.input | SPAN.field-hint | LABEL.field | SPAN.field-label | DIV.chip-check-list | LABEL.chip-check | INPUT | SPAN | LABEL.chip-check | INPUT | SPAN | LABEL.chip-check | INPUT | SPAN | LABEL.chip-check | INPUT | SPAN | LABEL.chip-check | INPUT | SPAN | LABEL.chip-check | INPUT | SPAN | LABEL.chip-check | INPUT | SPAN | P.form-error | DIV.modal-actions | BUTTON.btn.btn-ghost | BUTTON.btn.btn-primary
+controls=BUTTON[type=button][value=][text=×] ; INPUT[type=text][value=] ; SELECT[type=select-one][value=music][text=音乐歌词绘画代码视频剧情世界观OC其他] ; INPUT[type=text][value=] ; INPUT[type=checkbox][value=meta] ; INPUT[type=checkbox][value=audio] ; INPUT[type=checkbox][value=lyrics] ; INPUT[type=checkbox][value=chords] ; INPUT[type=checkbox][value=sections] ; INPUT[type=checkbox][value=notes] ; INPUT[type=checkbox][value=references] ; BUTTON[type=button][value=][text=取消] ; BUTTON[type=button][value=][text=创建项目]
+errors(open)=[]
+name="鲸落"
+actions=取消/btn btn-ghost ; 创建项目/btn btn-primary
+click ok: text=创建项目 disabled=false
+--- after create ---
+calls=["GET /api/setup-state","GET /api/me","GET /api/modules","GET /api/projects","POST /api/projects BODY={\"name\":\"鲸落\",\"type\":\"music\",\"tags\":[],\"modules\":[\"meta\",\"audio\",\"lyrics\",\"chords\",\"sections\"]}","GET /api/projects/p-20261108-probe","GET /api/projects"]
+errors=[]
+modal hidden=true
+form-error="(node gone)"
+toasts=["项目已创建","项目打不开：项目数据异常"]
+hash=#/wall
+detail hidden=true
+</pre>
+  <script src="probe-stub.js"></script>
+  <script src="../studio/static/app.js"></script>
+  <script src="probe-run.js"></script>
+
+
+<div id="probe-done">DONE</div></body></html>
