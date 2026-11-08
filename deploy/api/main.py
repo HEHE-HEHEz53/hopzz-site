@@ -1036,8 +1036,10 @@ def works_route() -> dict[str, Any]:
 @app.get("/api/sponsor/qr")
 def sponsor_qr(data: str = Query(..., min_length=8, max_length=1024)) -> Response:
     """把支付链接渲染成二维码 PNG（服务端生成，前端不用引第三方库）。"""
-    if not data.startswith("https://"):
-        raise HTTPException(status_code=400, detail="只支持 https 链接")
+    # 支付宝深链（alipays://）也要能生成二维码，不能只放 https
+    allowed_prefixes = ("https://", "http://", "alipays://", "alipayqr://", "weixin://")
+    if not data.startswith(allowed_prefixes):
+        raise HTTPException(status_code=400, detail="不支持的链接类型")
     try:
         import qrcode  # 延迟导入，缺依赖时给明确提示
     except ImportError:

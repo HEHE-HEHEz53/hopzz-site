@@ -622,7 +622,20 @@
     var price = plan && plan.price !== undefined ? "¥" + plan.price : "";
     planEl.textContent = price ? name + " · " + price : name;
     openLink.href = url;
-    qrImg.src = "/api/sponsor/qr?data=" + encodeURIComponent(url);
+    // 优先用上游返回的二维码图；没有就用服务端把深链渲染成 PNG
+    var qrSource = data && data.purchase_qr_code
+      ? String(data.purchase_qr_code)
+      : "/api/sponsor/qr?data=" + encodeURIComponent(url);
+    qrImg.onerror = function () {
+      qrImg.removeAttribute("src");
+      var note = document.getElementById("payQrFallback");
+      if (note) { note.hidden = false; }
+    };
+    qrImg.onload = function () {
+      var note = document.getElementById("payQrFallback");
+      if (note) { note.hidden = true; }
+    };
+    qrImg.src = qrSource;
     layer.hidden = false;
     if (closeBtn) closeBtn.focus();
   };
