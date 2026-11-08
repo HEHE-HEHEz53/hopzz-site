@@ -137,6 +137,7 @@ MODULES: dict[str, dict[str, Any]] = {
     "audio": {
         "label": "编曲参数",
         "types": ["music"],
+        "ui": "audio-upload",
         "fields": [
             {"key": "bpm", "label": "BPM", "type": "number", "placeholder": "128"},
             {"key": "key", "label": "调性", "type": "text", "placeholder": "A minor"},
@@ -587,6 +588,7 @@ def list_modules() -> dict[str, Any]:
             "label": spec.get("label") or module_id,
             "types": list(spec.get("types") or ["*"]),
             "fields": list(spec.get("fields") or []),
+            "ui": spec.get("ui") or "",
         }
         for module_id, spec in MODULES.items()
     }

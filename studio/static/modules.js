@@ -511,6 +511,244 @@
 .sm-outline-row:focus-within { background: var(--sm-accent-softer); }
 .sm-tl-rename { background: var(--sm-glass-strong); border-color: var(--sm-accent); }
 
+.sm-btn--active {
+  border-color: var(--sm-accent);
+  background: var(--sm-accent-soft);
+  color: var(--sm-ink);
+  font-weight: 600;
+}
+
+.sm-visually-hidden {
+  position: absolute !important;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.sm-danger-text { color: var(--sm-danger); }
+.sm-finish-warn { color: var(--sm-warn); }
+
+/* ---------- 钢琴卷帘：片段 / 成曲 ---------- */
+.sm-pr-content { min-width: 0; }
+.sm-pr-layout { display: flex; gap: 10px; align-items: flex-start; min-width: 0; }
+.sm-pr-parts {
+  flex: 0 0 148px;
+  width: 148px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px;
+  border: 1px solid var(--sm-line);
+  border-radius: 10px;
+  background: var(--sm-glass-strong);
+}
+.sm-pr-parts-head { display: flex; align-items: center; justify-content: space-between; gap: 4px; }
+.sm-pr-part-list { display: flex; flex-direction: column; gap: 3px; min-width: 0; max-height: 220px; overflow: auto; }
+.sm-pr-part-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0;
+  min-width: 0;
+  padding: 5px 7px;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--sm-soft);
+  text-align: left;
+  cursor: pointer;
+}
+.sm-pr-part-btn:hover { background: var(--sm-accent-softer); color: var(--sm-ink); }
+.sm-pr-part-btn--selected {
+  border-color: var(--sm-accent);
+  background: var(--sm-accent-soft);
+  color: var(--sm-ink);
+}
+.sm-pr-part-name {
+  max-width: 100%;
+  overflow: hidden;
+  font-size: 11.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sm-pr-part-meta { color: var(--sm-dim); font-size: 9.5px; font-family: var(--font-mono, monospace); }
+.sm-pr-name-input { width: 100%; font-size: 11.5px; }
+.sm-pr-parts-actions { display: flex; gap: 4px; flex-wrap: wrap; }
+.sm-pr-main { flex: 1 1 auto; min-width: 0; }
+.sm-pr-rollbox { display: flex; flex-direction: column; gap: 7px; min-width: 0; }
+.sm-pr-arrange { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.sm-pr-palette {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  padding: 7px;
+  border: 1px dashed var(--sm-line-strong);
+  border-radius: 9px;
+}
+.sm-pr-part-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 9px;
+  border: 1px solid var(--sm-line-strong);
+  border-radius: var(--radius-chip, 999px);
+  background: var(--sm-glass-strong);
+  color: var(--sm-soft);
+  font-size: 11.5px;
+  white-space: nowrap;
+  cursor: grab;
+  touch-action: none;
+}
+.sm-pr-part-chip:hover { border-color: var(--sm-accent); color: var(--sm-ink); }
+.sm-pr-song {
+  display: flex;
+  align-items: stretch;
+  gap: 6px;
+  min-height: 58px;
+  min-width: 0;
+  padding: 8px;
+  overflow-x: auto;
+  border: 1px solid var(--sm-line-strong);
+  border-radius: 10px;
+  background: var(--sm-glass-strong);
+}
+.sm-pr-song-block {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 1px;
+  min-width: 78px;
+  max-width: 150px;
+  padding: 5px 9px;
+  border: 1px solid var(--sm-line-strong);
+  border-left: 4px solid var(--sm-accent);
+  border-radius: 8px;
+  background: var(--sm-glass-strong);
+  color: var(--sm-ink);
+  text-align: left;
+  cursor: grab;
+  touch-action: none;
+}
+.sm-pr-song-block:hover { border-color: var(--sm-accent); }
+.sm-pr-song-block--selected { box-shadow: 0 0 0 2px var(--sm-accent-soft); border-color: var(--sm-accent); }
+.sm-pr-song-name {
+  max-width: 100%;
+  overflow: hidden;
+  font-size: 11.5px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sm-pr-song-meta { color: var(--sm-dim); font-family: var(--font-mono, monospace); font-size: 9.5px; white-space: nowrap; }
+.sm-pr-empty { padding: 14px 8px; }
+.sm-pr-arrange-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-height: 30px; }
+
+/* ---------- 完成 / 发布 ---------- */
+.sm-finish-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-width: 0; }
+.sm-finish-badge {
+  padding: 3px 10px;
+  border: 1px solid var(--sm-line-strong);
+  border-radius: var(--radius-chip, 999px);
+  background: var(--sm-glass-strong);
+  color: var(--sm-dim);
+  font-size: 11.5px;
+  font-weight: 600;
+}
+.sm-finish-badge--done {
+  border-color: var(--sm-ok);
+  background: var(--ok-soft, rgba(63, 138, 99, 0.12));
+  color: var(--sm-ok);
+}
+.sm-finished-at { color: var(--sm-dim); font-size: 10.5px; font-family: var(--font-mono, monospace); }
+.sm-finish-body { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.sm-finish-note { width: 100%; resize: vertical; min-height: 46px; }
+.sm-upload-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  padding: 8px;
+  border: 1px dashed var(--sm-line-strong);
+  border-radius: 10px;
+  background: var(--sm-glass-strong);
+}
+.sm-upload-card--filled { border-style: solid; border-color: var(--sm-line-strong); }
+.sm-upload-head { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; min-width: 0; }
+.sm-upload-title { color: var(--sm-soft); font-size: 12px; font-weight: 600; white-space: nowrap; }
+.sm-upload-name {
+  flex: 1 1 80px;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--sm-dim);
+  font-family: var(--font-mono, monospace);
+  font-size: 10.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sm-upload-path {
+  overflow: hidden;
+  color: var(--sm-dim);
+  font-family: var(--font-mono, monospace);
+  font-size: 9.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sm-upload-hint { color: var(--sm-dim); font-size: 10.5px; }
+.sm-cover-preview {
+  max-width: 160px;
+  max-height: 120px;
+  border: 1px solid var(--sm-line);
+  border-radius: 8px;
+  object-fit: cover;
+}
+.sm-upload-video { width: 100%; max-height: 200px; border-radius: 8px; background: var(--sm-glass); }
+
+/* ---------- 音频上传 ---------- */
+.sm-audio-fields { display: flex; flex-wrap: wrap; gap: 8px; align-items: flex-end; }
+.sm-audio-fields .sm-field { flex-direction: column; align-items: flex-start; gap: 3px; }
+.sm-audio-block {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  padding: 8px;
+  border: 1px solid var(--sm-line);
+  border-radius: 10px;
+  background: var(--sm-glass-strong);
+}
+.sm-audio-upload { min-width: 0; }
+.sm-audio-list { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+.sm-audio-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  padding: 5px 7px;
+  border-top: 1px solid var(--sm-line);
+}
+.sm-audio-name {
+  flex: 1 1 120px;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--sm-soft);
+  font-size: 11.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sm-audio-size { flex: 0 0 auto; color: var(--sm-dim); font-size: 10px; font-family: var(--font-mono, monospace); }
+.sm-audio-player { flex: 1 1 180px; min-width: 120px; height: 30px; }
+
 /* ---------- 窄屏 ---------- */@media (max-width: 640px) {
   .sm-editor { padding: 9px; gap: 8px; }
   .sm-toolbar { gap: 5px; }
@@ -526,6 +764,15 @@
   .sm-readout { font-size: 10px; }
   .sm-tl-block { padding: 4px 6px; }
   .sm-tl-name { font-size: 10.5px; }
+  .sm-pr-layout { flex-direction: column; }
+  .sm-pr-parts { flex-basis: auto; width: 100%; }
+  .sm-pr-part-list { flex-direction: row; flex-wrap: nowrap; overflow-x: auto; overflow-y: hidden; max-height: none; }
+  .sm-pr-part-btn { flex: 0 0 auto; max-width: 120px; }
+  .sm-pr-name-input { width: 130px; }
+  .sm-pr-song { min-height: 48px; }
+  .sm-pr-song-block { min-width: 66px; }
+  .sm-audio-row { align-items: flex-start; }
+  .sm-finish-head { gap: 6px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -1055,6 +1302,101 @@
     el._smTimer = setTimeout(function () {
       el.textContent = '';
     }, 2200);
+  }
+
+  // ================================================================ 上传 / 文件工具
+
+  var AUDIO_EXTS = ['.mp3', '.wav', '.flac', '.ogg', '.m4a', '.aac', '.opus', '.mid', '.midi'];
+  var VIDEO_EXTS = ['.mp4', '.webm', '.mov', '.mkv', '.m4v', '.avi'];
+  var IMAGE_EXTS = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.avif', '.bmp', '.svg', '.ico'];
+
+  function extOfPath(path) {
+    var name = String(path || '');
+    var index = name.lastIndexOf('.');
+    return index < 0 ? '' : name.slice(index).toLowerCase();
+  }
+
+  function fileBaseName(path) {
+    var parts = String(path || '').split('/');
+    return parts[parts.length - 1] || '';
+  }
+
+  function isAudioPath(path) { return AUDIO_EXTS.indexOf(extOfPath(path)) >= 0; }
+  function isVideoPath(path) { return VIDEO_EXTS.indexOf(extOfPath(path)) >= 0; }
+  function isImagePath(path) { return IMAGE_EXTS.indexOf(extOfPath(path)) >= 0; }
+
+  function fmtSize(bytes) {
+    var num = Number(bytes);
+    if (!isFinite(num) || num <= 0) return '0 B';
+    var units = ['B', 'KB', 'MB', 'GB'];
+    var index = 0;
+    while (num >= 1024 && index < units.length - 1) {
+      num = num / 1024;
+      index += 1;
+    }
+    return (index === 0 ? String(Math.round(num)) : num.toFixed(1)) + ' ' + units[index];
+  }
+
+  function fmtDateTime(value) {
+    var date = new Date(value);
+    if (!value || isNaN(date.getTime())) return '';
+    return date.getFullYear() + '-' + pad2(date.getMonth() + 1) + '-' + pad2(date.getDate()) +
+      ' ' + pad2(date.getHours()) + ':' + pad2(date.getMinutes());
+  }
+
+  function projectFileUrl(projectId, path) {
+    return '/api/projects/' + encodeURIComponent(projectId) + '/file?path=' + encodeURIComponent(path);
+  }
+
+  function projectThumbUrl(projectId, path, size) {
+    var url = '/api/projects/' + encodeURIComponent(projectId) + '/thumb?path=' + encodeURIComponent(path);
+    if (size) url += '&size=' + encodeURIComponent(String(size));
+    return url;
+  }
+
+  // 上传：POST /api/projects/{id}/upload?path=<目录>，multipart 字段名 files
+  function uploadProjectFiles(projectId, files, targetPath) {
+    return new Promise(function (resolve, reject) {
+      if (!projectId) {
+        reject(new Error('缺少项目 ID，无法上传'));
+        return;
+      }
+      if (!files || !files.length) {
+        reject(new Error('没有选择文件'));
+        return;
+      }
+      var form = new FormData();
+      files.forEach(function (file) { form.append('files', file, file.name); });
+      var url = '/api/projects/' + encodeURIComponent(projectId) + '/upload?path=' +
+        encodeURIComponent(targetPath || '');
+      fetch(url, { method: 'POST', credentials: 'same-origin', body: form }).then(function (response) {
+        return response.json().catch(function () { return null; }).then(function (data) {
+          if (response.status === 401) {
+            throw new Error('登录已过期，请刷新页面重新登录');
+          }
+          if (!response.ok) {
+            throw new Error((data && (data.error || data.detail)) || ('上传失败（' + response.status + '）'));
+          }
+          if (data && data.ok === false) {
+            throw new Error(data.error || '上传失败');
+          }
+          var uploaded = data && Array.isArray(data.uploaded) ? data.uploaded : [];
+          var failed = data && Array.isArray(data.failed) ? data.failed : [];
+          if (!uploaded.length) {
+            var first = failed[0];
+            throw new Error((first && (first.error || first.name)) || '上传失败');
+          }
+          resolve({ uploaded: uploaded, failed: failed });
+        });
+      }).catch(function (err) {
+        reject(err instanceof Error ? err : new Error(String(err)));
+      });
+    });
+  }
+
+  function pickFile(files) {
+    var list = files && typeof files.length === 'number' ? Array.prototype.slice.call(files) : [];
+    return list;
   }
 
   // ================================================================ 1. 钢琴卷帘
@@ -2936,6 +3278,373 @@
     renderRows();
     renderExtra();  }
 
+  // ================================================================ 8. 完成 / 发布
+
+  function normalizeFinishData(raw) {
+    var data = raw && typeof raw === 'object' ? raw : {};
+    return {
+      audio: String(data.audio || ''),
+      cover: String(data.cover || ''),
+      note: String(data.note === undefined ? '' : data.note).slice(0, 2000),
+      finishedAt: String(data.finishedAt || '')
+    };
+  }
+
+  function renderFinishBoard(root, ctx) {
+    var original = clone(ctx.data || {});
+    var data = normalizeFinishData(original);
+    var state = {
+      audio: data.audio,
+      cover: data.cover,
+      note: data.note,
+      finishedAt: data.finishedAt,
+      busy: ''
+    };
+
+    var saver = trackSaver(makeSaver(function () {
+      ctx.save(clone(buildPayload(original, {
+        audio: state.audio,
+        cover: state.cover,
+        note: state.note,
+        finishedAt: state.finishedAt
+      })));
+    }, 200));
+
+    var statusHost = h('div', { class: 'sm-finish-head' });
+    var body = h('div', { class: 'sm-finish-body' });
+    var statusNote = h('span', { class: 'sm-note', role: 'status' });
+    var noteInput = h('textarea', {
+      class: 'sm-input sm-finish-note', rows: '2', maxlength: '2000',
+      'aria-label': '完成备注', placeholder: '发布说明 / 作品简介（可选）'
+    });
+    noteInput.value = state.note;
+    noteInput.addEventListener('input', function () { state.note = noteInput.value; saver.soon(); });
+    noteInput.addEventListener('change', function () { saver.now(); });
+
+    function isDone() { return !!state.audio; }
+
+    function syncFinished() {
+      if (state.audio && !state.finishedAt) state.finishedAt = new Date().toISOString();
+      if (!state.audio && !state.cover) state.finishedAt = '';
+    }
+
+    function uploadInto(kind, files) {
+      state.busy = kind;
+      render();
+      uploadProjectFiles(ctx.projectId, files, 'assets').then(function (result) {
+        var first = result.uploaded[0];
+        var path = String(first.path || '');
+        if (!path) throw new Error('服务端没有返回文件路径');
+        if (kind === 'audio') {
+          state.audio = path;
+        } else {
+          state.cover = path;
+        }
+        syncFinished();
+        state.busy = '';
+        saver.now();
+        render();
+        flashNote(statusNote, (kind === 'audio' ? '成品已上传：' : '封面上传：') +
+          (first.name || fileBaseName(path)));
+      }).catch(function (err) {
+        state.busy = '';
+        render();
+        flashNote(statusNote, '上传失败：' + (err && err.message ? err.message : String(err)), true);
+      });
+    }
+
+    function buildUploadCard(kind, title, accept) {
+      var path = kind === 'audio' ? state.audio : state.cover;
+      var busy = state.busy === kind;
+      var card = h('div', { class: 'sm-upload-card' + (path ? ' sm-upload-card--filled' : '') });
+      var input = h('input', {
+        type: 'file',
+        accept: accept,
+        class: 'sm-visually-hidden',
+        'aria-hidden': 'true',
+        tabindex: '-1'
+      });
+      var uploadBtn = btn(busy ? '上传中…' : (path ? '替换文件' : '上传文件'), 'sm-btn--primary sm-btn--mini', function () {
+        if (!busy) input.click();
+      });
+      uploadBtn.disabled = busy || !ctx.projectId;
+
+      input.addEventListener('change', function () {
+        var files = pickFile(input.files);
+        input.value = '';
+        if (files.length) uploadInto(kind, files);
+      });
+
+      card.appendChild(h('div', { class: 'sm-upload-head' },
+        h('span', { class: 'sm-upload-title', text: title }),
+        h('span', { class: 'sm-upload-name', text: path ? fileBaseName(path) : '未上传' }),
+        uploadBtn,
+        input
+      ));
+
+      if (path) {
+        if (kind === 'audio' && isAudioPath(path)) {
+          card.appendChild(h('audio', {
+            class: 'sm-audio-player', controls: true, preload: 'none',
+            src: projectFileUrl(ctx.projectId, path)
+          }));
+        } else if (kind === 'audio' && isVideoPath(path)) {
+          card.appendChild(h('video', {
+            class: 'sm-upload-video', controls: true, preload: 'metadata',
+            src: projectFileUrl(ctx.projectId, path)
+          }));
+        } else if (kind === 'cover' && isImagePath(path)) {
+          var img = h('img', { class: 'sm-cover-preview', alt: '封面预览' });
+          img.addEventListener('error', function () {
+            img.src = projectFileUrl(ctx.projectId, path);
+          });
+          img.src = projectThumbUrl(ctx.projectId, path, 480);
+          card.appendChild(img);
+        }
+        card.appendChild(h('span', { class: 'sm-upload-path', text: path }));
+      } else {
+        card.appendChild(h('span', {
+          class: 'sm-upload-hint',
+          text: kind === 'audio' ? '音频优先，也接受视频 / 图片 / 压缩包' : '建议 JPG / PNG / WEBP 方图'
+        }));
+      }
+
+      if (!ctx.projectId) {
+        card.appendChild(h('p', { class: 'sm-hint sm-danger-text', text: '缺少项目 ID，无法上传。' }));
+      }
+      return card;
+    }
+
+    function render() {
+      clear(statusHost);
+      clear(body);
+
+      statusHost.appendChild(h('span', {
+        class: 'sm-finish-badge' + (isDone() ? ' sm-finish-badge--done' : ''),
+        text: isDone() ? '已完成' : '未完成'
+      }));
+      if (state.finishedAt) {
+        statusHost.appendChild(h('span', {
+          class: 'sm-finished-at',
+          text: '完成时间 ' + fmtDateTime(state.finishedAt)
+        }));
+      }
+      statusHost.appendChild(h('span', { class: 'sm-spacer' }));
+      var cancelBtn = btn('取消完成', 'sm-btn--danger', function () {
+        state.audio = '';
+        state.cover = '';
+        state.finishedAt = '';
+        state.busy = '';
+        saver.now();
+        render();
+        flashNote(statusNote, '已取消完成，并清空成品与封面路径');
+      });
+      cancelBtn.disabled = !state.audio && !state.cover;
+      statusHost.appendChild(cancelBtn);
+
+      body.appendChild(buildUploadCard('audio', '成品文件', 'audio/*,video/*,image/*,.mp3,.wav,.flac,.m4a,.ogg,.zip,.7z,.rar,.tar,.gz'));
+      body.appendChild(buildUploadCard('cover', '封面图', 'image/*,.png,.jpg,.jpeg,.webp,.gif'));
+      body.appendChild(field('备注', noteInput));
+      body.appendChild(h('p', {
+        class: 'sm-hint sm-finish-warn',
+        text: '只有这里上传了成品文件，项目才会出现在 hopzz.top 的作品列表。'
+      }));
+    }
+
+    root.appendChild(statusHost);
+    root.appendChild(body);
+    root.appendChild(statusNote);
+    render();
+  }
+
+  // ================================================================ 9. 音频上传（audio 模块）
+
+  function normalizeAudioData(raw) {
+    var data = raw && typeof raw === 'object' ? raw : {};
+    var files = [];
+    if (Array.isArray(data.files)) {
+      data.files.forEach(function (item) {
+        if (!item || typeof item !== 'object') return;
+        var path = String(item.path || '');
+        if (!path) return;
+        files.push({
+          path: path,
+          name: String(item.name || fileBaseName(path)),
+          size: Number(item.size) || 0
+        });
+      });
+    }
+    return {
+      bpm: data.bpm === undefined || data.bpm === null ? '' : data.bpm,
+      key: String(data.key || ''),
+      style: String(data.style || ''),
+      duration: String(data.duration || ''),
+      files: files
+    };
+  }
+
+  function renderAudioUpload(root, ctx) {
+    var original = clone(ctx.data || {});
+    var data = normalizeAudioData(original);
+    var state = {
+      bpm: data.bpm,
+      key: data.key,
+      style: data.style,
+      duration: data.duration,
+      files: data.files,
+      busy: false
+    };
+
+    var saver = trackSaver(makeSaver(function () {
+      ctx.save(clone(buildPayload(original, {
+        bpm: state.bpm,
+        key: state.key,
+        style: state.style,
+        duration: state.duration,
+        files: state.files.map(function (file) {
+          return { path: file.path, name: file.name, size: file.size };
+        })
+      })));
+    }, 260));
+
+    var statusNote = h('span', { class: 'sm-note', role: 'status' });
+    var fieldsHost = h('div', { class: 'sm-audio-fields' });
+    var uploadHost = h('div', { class: 'sm-audio-upload' });
+    var listHost = h('div', { class: 'sm-audio-list' });
+
+    function specField(key, fallbackLabel, type) {
+      var fields = ctx.spec && Array.isArray(ctx.spec.fields) ? ctx.spec.fields : [];
+      for (var i = 0; i < fields.length; i += 1) {
+        if (String(fields[i].key) === key) {
+          return { label: String(fields[i].label || fallbackLabel), type: String(fields[i].type || type) };
+        }
+      }
+      return { label: fallbackLabel, type: type };
+    }
+
+    function saveSoon() { saver.soon(); }
+
+    function renderFields() {
+      clear(fieldsHost);
+      var bpmField = specField('bpm', 'BPM', 'number');
+      var bpmControl = numInput(state.bpm, function (value) {
+        state.bpm = value === '' ? '' : Number(value);
+        saveSoon();
+      }, 'BPM', { min: '20', max: '400', step: '1' });
+      bpmControl.addEventListener('change', function () { saver.now(); });
+      fieldsHost.appendChild(field(bpmField.label, bpmControl));
+
+      [['key', '调性'], ['style', '风格'], ['duration', '时长']].forEach(function (pair) {
+        var key = pair[0];
+        var def = specField(key, pair[1], 'text');
+        var input = h('input', {
+          class: 'sm-input', type: 'text', maxlength: '80',
+          'aria-label': def.label, placeholder: def.label
+        });
+        input.value = state[key] === undefined || state[key] === null ? '' : String(state[key]);
+        input.addEventListener('input', function () {
+          state[key] = input.value;
+          saveSoon();
+        });
+        input.addEventListener('change', function () { saver.now(); });
+        fieldsHost.appendChild(field(def.label, input));
+      });
+    }
+
+    function uploadFiles(files) {
+      state.busy = true;
+      renderUpload();
+      uploadProjectFiles(ctx.projectId, files, 'assets').then(function (result) {
+        result.uploaded.forEach(function (uploaded) {
+          var path = String(uploaded.path || '');
+          if (!path) return;
+          state.files.push({
+            path: path,
+            name: String(uploaded.name || fileBaseName(path)),
+            size: Number(uploaded.size) || 0
+          });
+        });
+        state.busy = false;
+        saver.now();
+        renderUpload();
+        renderList();
+        flashNote(statusNote, '已上传 ' + result.uploaded.length + ' 个音频文件');
+      }).catch(function (err) {
+        state.busy = false;
+        renderUpload();
+        flashNote(statusNote, '上传失败：' + (err && err.message ? err.message : String(err)), true);
+      });
+    }
+
+    function renderUpload() {
+      clear(uploadHost);
+      var input = h('input', {
+        type: 'file',
+        accept: '.mp3,.wav,.flac,.ogg,.m4a,.aac,.opus,audio/*',
+        class: 'sm-visually-hidden',
+        'aria-hidden': 'true',
+        tabindex: '-1'
+      });
+      input.addEventListener('change', function () {
+        var files = pickFile(input.files);
+        input.value = '';
+        if (files.length) uploadFiles(files);
+      });
+      var uploadBtn = btn(state.busy ? '上传中…' : '↑ 上传音频', 'sm-btn--primary sm-btn--mini', function () {
+        if (!state.busy) input.click();
+      });
+      uploadBtn.disabled = state.busy || !ctx.projectId;
+      uploadHost.appendChild(h('div', { class: 'sm-toolbar' },
+        h('div', { class: 'sm-group' }, uploadBtn, input),
+        h('span', { class: 'sm-spacer' }),
+        h('span', { class: 'sm-hint', text: 'mp3 / wav / flac / m4a / ogg' })
+      ));
+      if (!ctx.projectId) {
+        uploadHost.appendChild(h('p', { class: 'sm-hint sm-danger-text', text: '缺少项目 ID，无法上传。' }));
+      }
+    }
+
+    function renderList() {
+      clear(listHost);
+      if (!state.files.length) {
+        listHost.appendChild(h('p', { class: 'sm-hint', text: '还没有上传音频。上传后可以在这里试听、移除。' }));
+        return;
+      }
+      state.files.forEach(function (file, index) {
+        var row = h('div', { class: 'sm-audio-row' },
+          h('span', { class: 'sm-audio-name', title: file.path, text: file.name }),
+          h('span', { class: 'sm-audio-size', text: fmtSize(file.size) }),
+          isAudioPath(file.path)
+            ? h('audio', {
+              class: 'sm-audio-player', controls: true, preload: 'none',
+              src: projectFileUrl(ctx.projectId, file.path)
+            })
+            : h('span', { class: 'sm-hint', text: '无法预览' })
+        );
+        var removeBtn = miniBtn('×', '从列表移除（不删仓库文件）', function () {
+          state.files.splice(index, 1);
+          saver.now();
+          renderList();
+          flashNote(statusNote, '已从列表移除：' + file.name);
+        }, 'sm-btn--danger');
+        row.appendChild(removeBtn);
+        listHost.appendChild(row);
+      });
+    }
+
+    renderFields();
+    renderUpload();
+    renderList();
+
+    root.appendChild(fieldsHost);
+    root.appendChild(h('div', { class: 'sm-audio-block' },
+      h('div', { class: 'sm-toolbar' }, h('span', { class: 'sm-field-label', text: '音频文件' })),
+      uploadHost,
+      listHost
+    ));
+    root.appendChild(statusNote);
+  }
+
   // ================================================================ 注册表 / 对外接口
 
   var EDITORS = {
@@ -2945,7 +3654,9 @@
     'palette-swatches': renderPalette,
     'outline-tree': renderOutlineTree,
     'shot-list': renderShotList,
-    'timeline-track': renderTimelineTrack
+    'timeline-track': renderTimelineTrack,
+    'finish-board': renderFinishBoard,
+    'audio-upload': renderAudioUpload
   };
 
   function has(uiId) {

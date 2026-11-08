@@ -1869,7 +1869,13 @@
       }).filter(Boolean);
     }
 
-    return { key: key, label: label, types: types, fields: normalizedFields };
+    return {
+      key: key,
+      label: label,
+      types: types,
+      ui: module.ui ? String(module.ui) : "",
+      fields: normalizedFields
+    };
   }
 
   function normalizeField(field) {
