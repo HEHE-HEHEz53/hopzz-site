@@ -1401,6 +1401,17 @@
 
     var saveStatus = h('span', { class: 'save-status is-saved', id: 'save-status', text: '已保存' });
 
+    var shareBtn = h('button', {
+      class: 'btn btn-ghost btn-sm',
+      type: 'button',
+      text: '分享'
+    });
+    shareBtn.addEventListener('click', function () {
+      if (window.StudioShare && typeof window.StudioShare.open === 'function') {
+        window.StudioShare.open(project);
+      }
+    });
+
     var deleteBtn = h('button', {
       class: 'btn btn-ghost btn-sm',
       type: 'button',
@@ -1420,7 +1431,7 @@
           text: '更新于 ' + (fmtTime(project.updatedAt) || '—') + ' · ' + project.modules.length + ' 个模块'
         })
       ),
-      h('div', { class: 'detail-head-actions' }, saveStatus, deleteBtn)
+      h('div', { class: 'detail-head-actions' }, saveStatus, shareBtn, deleteBtn)
     );
   }
 

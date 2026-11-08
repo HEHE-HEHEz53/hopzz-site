@@ -1,0 +1,51 @@
+/* 公开分享页样式（复用 app.css 的配色变量） */
+.pub-body { margin: 0; min-height: 100vh; background: var(--bg, #0a1f33); color: var(--fg, #dceaf5); font-family: system-ui, -apple-system, "Segoe UI", sans-serif; }
+.pub-root { max-width: 1180px; margin: 0 auto; padding: 28px 20px 60px; }
+.pub-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 12px; padding-bottom: 14px; border-bottom: 1px solid rgba(127, 227, 212, .16); }
+.pub-brand { display: flex; align-items: center; gap: 10px; font-size: 20px; }
+.pub-brand strong { font-weight: 650; letter-spacing: .01em; }
+.type-badge { font-size: 12px; padding: 2px 8px; border-radius: 999px; border: 1px solid rgba(127, 227, 212, .35); color: #8fe3d3; }
+.pub-meta { display: flex; gap: 14px; font-size: 13px; opacity: .75; }
+.pub-mode { padding: 2px 10px; border-radius: 999px; font-size: 12px; }
+.pub-mode.is-view { background: rgba(127, 227, 212, .12); color: #8fe3d3; }
+.pub-mode.is-edit { background: rgba(255, 196, 120, .14); color: #ffc478; }
+.pub-summary { flex-basis: 100%; margin: 8px 0 0; opacity: .8; font-size: 14px; line-height: 1.7; }
+
+.pub-main { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr); gap: 22px; margin-top: 22px; }
+@media (max-width: 900px) { .pub-main { grid-template-columns: minmax(0, 1fr); } }
+
+.pub-block { background: rgba(255, 255, 255, .03); border: 1px solid rgba(127, 227, 212, .14); border-radius: 14px; padding: 16px 18px; margin-bottom: 18px; }
+.pub-block-title { margin: 0 0 12px; font-size: 15px; font-weight: 600; opacity: .9; }
+
+.pub-field { margin-bottom: 16px; }
+.pub-field-key { display: block; font-size: 12px; letter-spacing: .06em; text-transform: uppercase; opacity: .55; margin-bottom: 6px; }
+.pub-field-value { margin: 0; white-space: pre-wrap; word-break: break-word; font-size: 14px; line-height: 1.7; background: rgba(0, 0, 0, .22); border-radius: 10px; padding: 10px 12px; }
+.pub-field-input { width: 100%; }
+.pub-section { padding: 8px 0; border-bottom: 1px dashed rgba(127, 227, 212, .14); font-size: 14px; }
+.pub-section-notes { margin: 4px 0 0; opacity: .75; font-size: 13px; }
+
+.pub-tree-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 10px; }
+.pub-path { font-size: 13px; opacity: .7; font-family: ui-monospace, monospace; }
+.pub-upload { font-size: 12px; color: inherit; }
+.pub-list { display: flex; flex-direction: column; gap: 2px; }
+.pub-row { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 9px; cursor: pointer; }
+.pub-row:hover { background: rgba(127, 227, 212, .08); }
+.pub-row.is-dir .pub-name { color: #8fe3d3; }
+.pub-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; }
+.pub-size { font-size: 12px; opacity: .5; }
+.pub-preview-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+.pub-preview-img { max-width: 100%; border-radius: 10px; display: block; }
+.pub-preview-video { max-width: 100%; border-radius: 10px; }
+.pub-preview-text { max-height: 60vh; overflow: auto; font-family: ui-monospace, monospace; font-size: 13px; line-height: 1.6; white-space: pre-wrap; word-break: break-word; }
+.pub-error { text-align: center; padding: 60px 0; opacity: .8; }
+.empty-hint { opacity: .55; font-size: 14px; }
+.pub-foot { margin-top: 30px; padding-top: 16px; border-top: 1px solid rgba(127, 227, 212, .12); display: flex; justify-content: space-between; font-size: 12px; opacity: .55; }
+.pub-foot a { color: inherit; }
+
+/* 分享面板 */
+.share-card { max-width: 560px; }
+.share-status { min-height: 20px; font-size: 13px; opacity: .8; margin: 6px 0 0; }
+.share-link-row { display: flex; gap: 8px; align-items: center; margin: 12px 0; flex-wrap: wrap; }
+.share-url { flex: 1; min-width: 220px; font-family: ui-monospace, monospace; font-size: 13px; }
+.radio-row { display: flex; align-items: center; gap: 8px; padding: 6px 0; cursor: pointer; font-size: 14px; }
+.field-hint { display: block; margin-top: 6px; font-size: 12px; opacity: .55; }

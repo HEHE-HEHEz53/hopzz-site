@@ -119,7 +119,14 @@ async def change_password(request: Request, _: None = Depends(require_auth)) -> 
 # ---------------------------------------------------------------- 子路由
 
 def _mount_routers() -> None:
-    for mod_name, attr in (("projects", "router"), ("media", "router"), ("ai", "router")):
+    # 公开路由（分享链接 /ll/*）：必须在登录依赖之外单独挂载
+    try:
+        import share as share_mod
+        app.include_router(share_mod.public)
+    except ModuleNotFoundError:
+        pass
+
+    for mod_name, attr in (("projects", "router"), ("media", "router"), ("ai", "router"), ("share", "router")):
         try:
             mod = __import__(mod_name)
         except ModuleNotFoundError:

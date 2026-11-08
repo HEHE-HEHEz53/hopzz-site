@@ -146,3 +146,17 @@ bash /opt/hopzz-studio/install_studio.sh
 
 nginx：`deploy/nginx/studio.hopzz.top.conf`（反代 8103，WebSocket 支持，`client_max_body_size 0`）
 证书：`certbot certonly --webroot -w /var/www/certbot -d studio.hopzz.top`
+## 分享链接（/ll/{slug}）
+
+每个项目可开启一条公开浏览链接，随时可关，权限两档：
+
+| 模式 | 能力 |
+| --- | --- |
+| `view`（仅浏览） | 看项目字段、浏览目录、预览/下载文件 |
+| `edit`（可修改） | 上述 + 上传、新建文件夹、删文件、改字段 |
+
+- 存在 `project.json` 的 `share: { slug, mode, enabled, updatedAt }`
+- 管理（需登录）：`GET/POST/PATCH/DELETE /api/projects/{id}/share`
+- 公开（无需登录）：`GET /ll/{slug}`、`/ll/{slug}/api/{info,tree,file,upload,mkdir,project}`
+- 关闭后 `/ll/{slug}` 与全部公开接口返回 404
+- `project.json` 不出现在公开目录树里；公开接口不能修改 share 设置本身
