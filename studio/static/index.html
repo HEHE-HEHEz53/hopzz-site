@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="color-scheme" content="dark">
+  <meta name="theme-color" content="#0a2e58">
+  <meta name="robots" content="noindex, nofollow">
+  <title>Hopzz Studio · 创作工作站</title>
+  <link rel="stylesheet" href="/static/app.css?v=1">
+</head>
+<body>
+  <!-- 登录 / 首次设置密码 -->
+  <div id="login-view" class="login-view" hidden>
+    <form id="login-form" class="login-card" autocomplete="on" novalidate>
+      <div class="login-brand">
+        <span class="brand-mark" aria-hidden="true">◈</span>
+        <div class="login-brand-text">
+          <strong>Hopzz Studio</strong>
+          <span class="login-brand-sub">创作工作站</span>
+        </div>
+      </div>
+      <p id="login-subtitle" class="login-subtitle">输入密码进入</p>
+      <label class="field">
+        <span class="field-label">密码</span>
+        <input id="login-password" class="input" type="password" required minlength="6"
+               maxlength="128" autocomplete="current-password" placeholder="输入密码">
+      </label>
+      <label id="login-confirm-wrap" class="field" hidden>
+        <span class="field-label">确认密码</span>
+        <input id="login-confirm" class="input" type="password" minlength="6"
+               maxlength="128" autocomplete="new-password" placeholder="再输入一次">
+      </label>
+      <p id="login-error" class="login-error" role="alert"></p>
+      <button id="login-submit" class="btn btn-primary btn-block" type="submit">进入工作室</button>
+      <p class="login-foot">深海军蓝 · 冰青 · 一个人用就够了</p>
+    </form>
+  </div>
+
+  <!-- 主界面 -->
+  <div id="main-view" class="main-view" hidden>
+    <header class="topbar">
+      <a class="brand" id="brand-link" href="#/wall">
+        <span class="brand-mark" aria-hidden="true">◈</span>
+        <span class="brand-text">
+          <strong>Hopzz Studio</strong>
+          <span class="brand-sub">创作工作站</span>
+        </span>
+      </a>
+      <div class="topbar-actions">
+        <button id="new-project-btn" class="btn btn-primary" type="button">
+          <span class="btn-plus" aria-hidden="true">＋</span><span class="btn-label">新建项目</span>
+        </button>
+        <button id="logout-btn" class="btn btn-ghost" type="button">退出</button>
+      </div>
+    </header>
+
+    <!-- 项目墙 -->
+    <div id="wall-view" class="view wall-view" hidden>
+      <div class="wall-layout">
+        <aside class="sidebar">
+          <label class="field search-field">
+            <span class="field-label">搜索</span>
+            <input id="search-input" class="input" type="search" placeholder="项目名 / 标签 / 摘要"
+                   maxlength="80" autocomplete="off">
+          </label>
+          <div class="sidebar-block">
+            <h2 class="sidebar-title">类型</h2>
+            <div id="type-nav" class="type-nav"></div>
+          </div>
+          <div class="sidebar-block">
+            <h2 class="sidebar-title">标签</h2>
+            <div id="tag-filter" class="tag-filter"></div>
+          </div>
+        </aside>
+        <main class="wall-main">
+          <div class="wall-head">
+            <h1 id="wall-title" class="wall-title">全部项目</h1>
+            <p id="wall-count" class="wall-count"></p>
+          </div>
+          <div id="project-grid" class="project-grid"></div>
+          <div id="wall-empty" class="empty-state" hidden></div>
+        </main>
+      </div>
+    </div>
+
+    <!-- 项目详情（编辑 / 仓库 / 预览由 app.js 渲染） -->
+    <div id="detail-view" class="view detail-view" hidden></div>
+  </div>
+
+  <div id="modal-root" class="modal-root" hidden></div>
+  <div id="toast-root" class="toast-root" aria-live="polite"></div>
+
+  <!-- ai.js 由 studio-ai 提供，只暴露 window.StudioAI；不存在时 app.js 直接忽略 -->
+  <script src="/static/ai.js?v=1" defer></script>
+  <script src="/static/app.js?v=1" defer></script>
+</body>
+</html>

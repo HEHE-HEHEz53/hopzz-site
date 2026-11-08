@@ -1,0 +1,18 @@
+{
+  "name": "opcpay-bridge",
+  "version": "1.0.0",
+  "private": true,
+  "description": "一人付（opcpay）本地桥服务：只监听 127.0.0.1:8102，供 hopzz.top 后端调用",
+  "type": "module",
+  "main": "server.mjs",
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "start": "node server.mjs",
+    "readonly": "node scripts/readonly-query.mjs"
+  },
+  "dependencies": {
+    "opcpay": "^0.3.4"
+  }
+}

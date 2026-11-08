@@ -1,0 +1,9 @@
+# 真实凭证文件，绝不入库
+.env
+.env.local
+*.env
+
+# 依赖与运行时产物
+node_modules/
+npm-debug.log*
+*.log

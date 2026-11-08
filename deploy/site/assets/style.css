@@ -815,6 +815,17 @@ html[data-theme="dark"] .work__plate--b .work__no {
 .work__plate--c {
   border-color: var(--line-2);
   background-color: var(--paper-2);
+  background-image:
+    radial-gradient(120% 140% at 16% 88%, rgba(127, 216, 240, 0.3), transparent 62%),
+    radial-gradient(110% 130% at 88% 12%, rgba(197, 233, 238, 0.66), transparent 60%),
+    linear-gradient(160deg, #ffffff 0%, #eef6fb 100%);
+}
+
+html[data-theme="dark"] .work__plate--c {
+  background-image:
+    radial-gradient(120% 140% at 16% 88%, rgba(127, 216, 240, 0.16), transparent 62%),
+    radial-gradient(110% 130% at 88% 12%, rgba(197, 233, 238, 0.1), transparent 60%),
+    linear-gradient(160deg, #0d3459 0%, #0a2e58 100%);
 }
 
 .work__img {
@@ -1388,3 +1399,340 @@ html[data-theme="dark"] .contact {
     font-size: 0.68rem;
   }
 }
+
+/* ============================================================
+   作品方向（02）：五个方向排一行，比项目卡更轻
+   ============================================================ */
+.works--directions {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: clamp(12px, 1.6vw, 20px);
+}
+
+.work--dir {
+  padding: 13px;
+}
+
+.work--dir .work__plate {
+  aspect-ratio: 5 / 4;
+  margin-bottom: 13px;
+}
+
+.work--dir .work__no {
+  font-size: clamp(2rem, 3.2vw, 2.8rem);
+}
+
+.work--dir h3 {
+  margin-bottom: 5px;
+  font-size: 0.98rem;
+}
+
+.work--dir .work__desc {
+  margin-bottom: 0;
+  font-size: 0.78rem;
+  line-height: 1.7;
+}
+
+/* 第 4、5 块调色板：和前面对齐的水彩晕染，只换色相 */
+.work__plate--d {
+  background-image:
+    radial-gradient(120% 140% at 20% 10%, rgba(127, 216, 240, 0.34), transparent 60%),
+    radial-gradient(110% 130% at 90% 90%, rgba(177, 175, 201, 0.44), transparent 62%),
+    linear-gradient(160deg, #ffffff 0%, #f2f8fb 100%);
+}
+
+.work__plate--e {
+  background-image:
+    radial-gradient(120% 140% at 82% 8%, rgba(111, 168, 198, 0.36), transparent 60%),
+    radial-gradient(110% 130% at 10% 88%, rgba(197, 233, 238, 0.62), transparent 62%),
+    linear-gradient(160deg, #ffffff 0%, #f3f7fa 100%);
+}
+
+html[data-theme="dark"] .work__plate--d {
+  background-image:
+    radial-gradient(120% 140% at 20% 10%, rgba(127, 216, 240, 0.18), transparent 60%),
+    radial-gradient(110% 130% at 90% 90%, rgba(177, 175, 201, 0.2), transparent 62%),
+    linear-gradient(160deg, #0d3459 0%, #0a2e58 100%);
+}
+
+html[data-theme="dark"] .work__plate--e {
+  background-image:
+    radial-gradient(120% 140% at 82% 8%, rgba(111, 168, 198, 0.22), transparent 60%),
+    radial-gradient(110% 130% at 10% 88%, rgba(197, 233, 238, 0.12), transparent 62%),
+    linear-gradient(160deg, #0d3459 0%, #0a2e58 100%);
+}
+
+html[data-theme="dark"] .work__plate--c .work__no,
+html[data-theme="dark"] .work__plate--d .work__no,
+html[data-theme="dark"] .work__plate--e .work__no {
+  color: var(--ice-pale);
+  opacity: 0.18;
+}
+
+/* ============================================================
+   04 赞助
+   ============================================================ */
+.sponsor {
+  display: grid;
+  grid-template-columns: minmax(0, 1.45fr) minmax(0, 0.55fr);
+  align-items: center;
+  gap: clamp(24px, 4vw, 52px);
+  padding: clamp(24px, 3.4vw, 46px);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background-color: var(--card);
+  background-image: radial-gradient(120% 160% at 0% 0%, rgba(127, 216, 240, 0.16), transparent 62%),
+    radial-gradient(100% 130% at 100% 100%, rgba(177, 175, 201, 0.14), transparent 60%);
+  box-shadow: var(--shadow-card);
+}
+
+html[data-theme="dark"] .sponsor {
+  background-image: radial-gradient(120% 160% at 0% 0%, rgba(127, 216, 240, 0.08), transparent 62%),
+    radial-gradient(100% 130% at 100% 100%, rgba(177, 175, 201, 0.07), transparent 60%);
+}
+
+.sponsor__panel {
+  min-width: 0;
+}
+
+.sponsor__lead {
+  max-width: 30ch;
+  margin-bottom: 22px;
+  font-size: clamp(1.05rem, 1.7vw, 1.22rem);
+  font-weight: 600;
+  line-height: 1.7;
+  letter-spacing: -0.01em;
+}
+
+.plans {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(146px, 1fr));
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+/* 套餐卡：来自 /product 的真实档位。JS 只用 createElement + textContent 填充。 */
+.plan {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 16px 15px;
+  border: 1px solid var(--line-2);
+  border-radius: 16px;
+  background-color: var(--paper-2);
+  color: var(--ink);
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: transform 0.34s var(--ease), border-color 0.28s ease,
+    box-shadow 0.34s ease, background-color 0.28s ease;
+}
+
+html[data-theme="dark"] .plan {
+  background-color: rgba(197, 233, 238, 0.06);
+}
+
+.plan:hover {
+  transform: translateY(-3px);
+  border-color: var(--blue-light);
+  box-shadow: 0 22px 40px -30px rgba(10, 46, 88, 0.6);
+}
+
+.plan:disabled,
+.plan.is-busy {
+  cursor: progress;
+  opacity: 0.55;
+  transform: none;
+  box-shadow: none;
+}
+
+.plan__name {
+  font-size: 0.82rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  color: var(--ink-soft);
+}
+
+.plan__price {
+  font-size: 1.4rem;
+  font-weight: 800;
+  line-height: 1.15;
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+}
+
+.plan__price small {
+  margin-right: 2px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  opacity: 0.6;
+}
+
+.sponsor__hint {
+  grid-column: 1 / -1;
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--ink-soft);
+  opacity: 0.72;
+}
+
+/* 拿到 purchase_url 之后的手动兜底：重开支付页 / 扫码 */
+.sponsor__manual {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 16px;
+  margin-bottom: 16px;
+  padding: 14px 16px;
+  border: 1px dashed var(--line-2);
+  border-radius: 14px;
+  background-color: var(--card);
+}
+
+/* 没拿到 purchase_url 时不要留下空框（display:flex 会盖掉 hidden 的默认样式） */
+.sponsor__manual[hidden] {
+  display: none;
+}
+
+.sponsor__manual .btn {
+  height: 40px;
+  padding: 0 18px;
+  font-size: 0.82rem;
+}
+
+.sponsor__manual-note {
+  flex: 1 1 100%;
+  margin: 0;
+  font-size: 0.72rem;
+  line-height: 1.75;
+  color: var(--ink-soft);
+  opacity: 0.7;
+  font-variant-numeric: tabular-nums;
+}
+
+.sponsor__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px 14px;
+}
+
+.linkbtn {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ink-soft);
+  font-family: inherit;
+  font-size: 0.78rem;
+  letter-spacing: 0.02em;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  text-decoration-thickness: 1px;
+  cursor: pointer;
+  transition: color 0.25s ease;
+}
+
+.linkbtn:hover {
+  color: var(--link-hover);
+}
+
+.linkbtn:disabled {
+  cursor: progress;
+  opacity: 0.5;
+}
+
+.sponsor__status {
+  flex: 1 1 240px;
+  min-height: 1.4em;
+  margin: 0;
+  font-size: 0.78rem;
+  line-height: 1.75;
+  color: var(--ink-soft);
+  word-break: break-word;
+}
+
+.sponsor__note {
+  max-width: 46ch;
+  margin: 14px 0 0;
+  font-size: 0.72rem;
+  line-height: 1.85;
+  color: var(--ink-soft);
+  opacity: 0.7;
+}
+
+.sponsor__art {
+  margin: 0;
+}
+
+.sponsor__art img {
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  object-fit: cover;
+  object-position: center 32%;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-art);
+}
+
+.sponsor__art figcaption {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  opacity: 0.45;
+}
+
+/* ---------- 赞助 / 作品方向的响应式（写在最后，覆盖前面的通用规则） ---------- */
+@media (max-width: 1024px) {
+  .works--directions {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .works--directions .work:last-child,
+  .works--directions .work:nth-last-child(2) {
+    grid-column: auto;
+  }
+
+  .works--directions .work:last-child .work__plate,
+  .works--directions .work:nth-last-child(2) .work__plate {
+    aspect-ratio: 5 / 4;
+  }
+}
+
+@media (max-width: 880px) {
+  .sponsor {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .sponsor__art {
+    display: none;
+  }
+
+  .sponsor__lead {
+    max-width: 34ch;
+  }
+}
+
+@media (max-width: 760px) {
+  .works--directions {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 460px) {
+  .works--directions {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .plans {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .sponsor {
+    padding: 22px 18px;
+  }
+}
+

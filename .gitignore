@@ -34,3 +34,8 @@ plugin/dsh-web-relay/settings.json
 plugin/dsh-web-relay/boot.json
 plugin/dsh-web-relay/*.local.json
 plugin/_pack/
+# opcpay 桥服务的运行时文件与依赖
+opcpay/node_modules/
+opcpay/.env
+opcpay/data/
+*.log

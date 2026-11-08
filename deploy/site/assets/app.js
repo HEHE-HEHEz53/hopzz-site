@@ -91,13 +91,14 @@
   const API = "/api";
 
   async function api(path, options = {}) {
+    const { timeout = 8000, ...init } = options;
     const ctrl = new AbortController();
-    const timer = window.setTimeout(() => ctrl.abort(), 8000);
+    const timer = window.setTimeout(() => ctrl.abort(), timeout);
     try {
       const res = await fetch(API + path, {
-        ...options,
+        ...init,
         signal: ctrl.signal,
-        headers: { Accept: "application/json", ...(options.headers || {}) },
+        headers: { Accept: "application/json", ...(init.headers || {}) },
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       return await res.json();
@@ -280,6 +281,221 @@
     if (document.visibilityState === "visible") {
       refreshStatus();
       refreshTelemetry();
+      // 从支付宝切回来时重新查一次权益；这不算「付款成功」，只是重新问服务端
+      refreshAccess();
     }
   });
+
+  /* ================================================================
+     10. 赞助（一人付 opcpay）
+     - 只渲染服务端 /api/sponsor/product 真实返回的套餐，价格不写死在页面里
+     - 点套餐 → /api/sponsor/purchase 换 purchase_url → 跳支付宝
+     - 回跳 / 扫码 / READY 都只是入口，一律不当作付款成功
+     - 付款结果只认 /api/sponsor/access 的返回
+     ================================================================ */
+  const sponsorEl = {
+    plans: $("#plans"),
+    status: $("#sponsorStatus"),
+    manual: $("#sponsorManual"),
+    refresh: $("#accessRefresh"),
+  };
+
+  let purchaseActionId = null; // 同一次购买意图的重试编号；服务端据此复用同一业务编号
+  let purchaseBusy = false;
+
+  function makeActionId() {
+    if (window.crypto && typeof window.crypto.randomUUID === "function") {
+      return window.crypto.randomUUID();
+    }
+    let out = "act-";
+    for (let i = 0; i < 4; i += 1) {
+      out += Math.random().toString(36).slice(2, 10);
+    }
+    return out.slice(0, 40);
+  }
+
+  function setStatus(text) {
+    if (sponsorEl.status) sponsorEl.status.textContent = text || "";
+  }
+
+  function setPlansHint(text) {
+    if (!sponsorEl.plans) return;
+    const p = document.createElement("p");
+    p.className = "sponsor__hint";
+    p.textContent = text;
+    sponsorEl.plans.replaceChildren(p);
+  }
+
+  function clearManual() {
+    if (sponsorEl.manual) {
+      sponsorEl.manual.replaceChildren();
+      sponsorEl.manual.hidden = true;
+    }
+  }
+
+  function buildPlan(plan) {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "plan";
+
+    const name = document.createElement("span");
+    name.className = "plan__name";
+    name.textContent = plan.display_name || "赞助";
+
+    const price = document.createElement("span");
+    price.className = "plan__price";
+    const symbol = document.createElement("small");
+    symbol.textContent = plan.currency === "CNY" || !plan.currency ? "¥" : "";
+    const amount = document.createElement("span");
+    amount.textContent = String(plan.price ?? "");
+    price.append(symbol, amount);
+
+    btn.append(name, price);
+    btn.addEventListener("click", () => startPurchase(plan));
+    return btn;
+  }
+
+  async function loadSponsorProduct() {
+    if (!sponsorEl.plans) return;
+    try {
+      const d = await api("/sponsor/product");
+      if (!d || d.ok !== true) {
+        setPlansHint((d && d.message) || "赞助暂时不可用。");
+        return;
+      }
+      if (!d.purchase_available) {
+        setPlansHint("赞助暂未开放。");
+        return;
+      }
+      const plans = Array.isArray(d.plans) ? d.plans : [];
+      if (plans.length === 0) {
+        setPlansHint("还没有可赞助的套餐。");
+        return;
+      }
+      const frag = document.createDocumentFragment();
+      plans.forEach((plan) => {
+        if (plan && plan.sku_id) frag.append(buildPlan(plan));
+      });
+      sponsorEl.plans.replaceChildren(frag);
+    } catch (_) {
+      setPlansHint("套餐读取失败，稍后刷新页面再试。");
+    }
+  }
+
+  function showManualLinks(d) {
+    if (!sponsorEl.manual) return;
+    const frag = document.createDocumentFragment();
+
+    const open = document.createElement("a");
+    open.className = "btn btn--ghost";
+    open.href = d.purchase_url;
+    open.target = "_blank";
+    open.rel = "noopener noreferrer";
+    open.textContent = "重新打开支付页";
+
+    const qr = document.createElement("a");
+    qr.className = "linkbtn";
+    qr.target = "_blank";
+    qr.rel = "noopener noreferrer";
+    qr.textContent = "扫码支付页";
+    if (d.purchase_qr_code) {
+      qr.href = d.purchase_qr_code;
+    } else {
+      qr.removeAttribute("href");
+    }
+
+    frag.append(open);
+    if (d.purchase_qr_code) frag.append(qr);
+
+    if (typeof d.expire_time === "string" && d.expire_time) {
+      const when = document.createElement("p");
+      when.className = "sponsor__manual-note";
+      when.textContent = `入口有效期至 ${d.expire_time}（仅入口，不代表已付款）。`;
+      frag.append(when);
+    }
+
+    sponsorEl.manual.replaceChildren(frag);
+    sponsorEl.manual.hidden = false;
+  }
+
+  async function startPurchase(plan) {
+    if (purchaseBusy) return;
+    purchaseBusy = true;
+    const buttons = sponsorEl.plans ? sponsorEl.plans.querySelectorAll(".plan") : [];
+    buttons.forEach((b) => {
+      b.disabled = true;
+      b.classList.add("is-busy");
+    });
+
+    if (!purchaseActionId) purchaseActionId = makeActionId();
+    setStatus("正在创建支付入口…");
+
+    try {
+      const d = await api("/sponsor/purchase", {
+        method: "POST",
+        timeout: 45000,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sku_id: plan.sku_id, action_id: purchaseActionId }),
+      });
+
+      if (d && d.ok === true && d.purchase_url) {
+        // 到这里只代表「入口创建成功」，不代表已付款
+        purchaseActionId = null;
+        setStatus("已打开支付入口。付款完成后回到本页，点「刷新权益」确认。");
+        showManualLinks(d);
+        window.location.href = d.purchase_url;
+      } else {
+        const state = d && d.status;
+        if (state === "EXPIRED" || state === "FAILED") purchaseActionId = null;
+        setStatus((d && d.message) || "没能创建支付入口，稍后再试。");
+      }
+    } catch (_) {
+      // 超时/断网：保留 purchaseActionId，下次点击沿用同一次操作，不会重复下单
+      setStatus("网络或服务暂时不可用。再点一次会沿用同一次操作。");
+    } finally {
+      purchaseBusy = false;
+      buttons.forEach((b) => {
+        b.disabled = false;
+        b.classList.remove("is-busy");
+      });
+    }
+  }
+
+  async function refreshAccess() {
+    if (!sponsorEl.status) return;
+    try {
+      const d = await api("/sponsor/access");
+      if (!d || d.ok !== true) {
+        setStatus((d && d.message) || "权益查询失败。");
+        return;
+      }
+      const access = d.access || {};
+      const total = Number(access.total);
+      const remaining = Number(access.remaining);
+      if (Number.isFinite(total) && total > 0) {
+        setStatus(
+          Number.isFinite(remaining)
+            ? `已记录赞助：共 ${total} 次，剩余 ${remaining} 次。`
+            : "已记录赞助。"
+        );
+      } else if (d.allowed === true) {
+        setStatus("权益已生效。");
+      } else {
+        setStatus("还没有赞助记录。");
+      }
+    } catch (_) {
+      setStatus("权益查询失败，稍后再试。");
+    }
+  }
+
+  if (sponsorEl.plans) {
+    loadSponsorProduct();
+    refreshAccess();
+    if (sponsorEl.refresh) {
+      sponsorEl.refresh.addEventListener("click", () => {
+        setStatus("正在查询权益…");
+        refreshAccess();
+      });
+    }
+  }
 })();
