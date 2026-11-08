@@ -154,7 +154,17 @@ def _can_edit(slug: str) -> bool:
 
 @public.get("/ll/{slug}")
 def public_page(slug: str) -> Any:
-    _lookup(slug)  # 不存在直接 404
+    try:
+        _lookup(slug)
+    except HTTPException:
+        html = (
+            "<!doctype html><meta charset='utf-8'><title>链接不可用</title>"
+            "<body style='background:#0a1f33;color:#dceaf5;font-family:system-ui;"
+            "display:flex;align-items:center;justify-content:center;height:100vh;margin:0'>"
+            "<div style='text-align:center'><h1 style='font-size:20px;font-weight:600'>链接不存在或已关闭</h1>"
+            "<p style='opacity:.6;font-size:14px'>请向项目主人确认链接是否还有效。</p></div></body>"
+        )
+        return HTMLResponse(html, status_code=404)
     page = core.STATIC_DIR / "public.html"
     if not page.exists():
         return HTMLResponse("<h1>页面缺失</h1>", status_code=500)
