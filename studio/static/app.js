@@ -2512,6 +2512,34 @@
     var section = h('section', { class: 'module-section' });
     section.appendChild(h('h2', { class: 'module-title', text: def ? def.label : moduleLabel(key) }));
 
+    // 该模块声明了图形编辑器（如钢琴卷帘、和弦板）时，交给 StudioModules 渲染
+    if (def && def.ui && window.StudioModules &&
+        typeof window.StudioModules.has === "function" &&
+        window.StudioModules.has(def.ui)) {
+      var customHost = h("div", { class: "module-custom" });
+      var initial = (project.modulesData && project.modulesData[key]) || {};
+      try {
+        window.StudioModules.render(customHost, {
+          projectId: project.id,
+          moduleId: key,
+          ui: def.ui,
+          spec: def,
+          data: initial,
+          onSave: function (next) {
+            if (!project.modulesData) project.modulesData = {};
+            project.modulesData[key] = next;
+            var patch = { modulesData: {} };
+            patch.modulesData[key] = next;
+            scheduleSave(patch);
+          }
+        });
+        section.appendChild(customHost);
+        return section;
+      } catch (err) {
+        section.appendChild(h("p", { class: "hint", text: "图形编辑器加载失败：" + (err && err.message ? err.message : err) }));
+      }
+    }
+
     if (key === 'sections') {
       section.appendChild(buildSectionsEditor(project));
       return section;

@@ -1013,9 +1013,16 @@ def works_route() -> dict[str, Any]:
             publish = data.get("publish") or {}
             if not publish.get("enabled"):
                 continue
+            # 只有「完成 / 发布」模块里放了成品文件的项目才出现在主页
+            modules_data = data.get("modulesData") or {}
+            finish = modules_data.get("finish") or {}
+            audio_rel = str(finish.get("audio") or finish.get("file") or "").strip()
+            if not audio_rel:
+                continue
             share = data.get("share") or {}
             slug = publish.get("slug") or share.get("slug") or entry.name
-            cover_rel = _find_cover(entry)
+            cover_rel = str(finish.get("cover") or data.get("cover") or "").strip() or _find_cover(entry)
+            quote = urllib.parse.quote
             items.append({
                 "id": entry.name,
                 "name": data.get("name") or "未命名",
@@ -1023,11 +1030,11 @@ def works_route() -> dict[str, Any]:
                 "summary": data.get("summary") or "",
                 "tags": data.get("tags") or [],
                 "updatedAt": data.get("updatedAt") or "",
+                "finishedAt": finish.get("finishedAt") or "",
+                "hasAudio": True,
                 "url": f"{STUDIO_BASE}/ll/{slug}",
-                "cover": (
-                    f"{STUDIO_BASE}/ll/{slug}/api/file?path={urllib.parse.quote(cover_rel)}"
-                    if cover_rel else ""
-                ),
+                "cover": f"{STUDIO_BASE}/ll/{slug}/api/file?path={quote(cover_rel)}" if cover_rel else "",
+                "audio": f"{STUDIO_BASE}/ll/{slug}/api/file?path={quote(audio_rel)}",
             })
     items.sort(key=lambda item: item.get("updatedAt") or "", reverse=True)
     return {"ok": True, "works": items}

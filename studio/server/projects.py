@@ -155,19 +155,34 @@ MODULES: dict[str, dict[str, Any]] = {
     "chords": {
         "label": "和弦进行",
         "types": ["music"],
+        "ui": "chord-board",
         "fields": [
             {"key": "chords", "label": "和弦", "type": "textarea", "rows": 8,
              "mono": True, "placeholder": "[Verse] Am F C G"},
         ],
     },
+    "piano-roll": {
+        "label": "MIDI 钢琴卷帘",
+        "types": ["music"],
+        "ui": "piano-roll",
+        "fields": [],
+    },
+    "finish": {
+        "label": "完成 / 发布",
+        "types": ["*"],
+        "ui": "finish-board",
+        "fields": [],
+    },
     "sections": {
         "label": "片段 / 段落",
         "types": ["music", "video", "story"],
+        "ui": "section-timeline",
         "fields": [],
     },
     "shots": {
         "label": "镜头标记",
         "types": ["video"],
+        "ui": "shot-list",
         "fields": [
             {"key": "shots", "label": "镜头列表", "type": "textarea", "rows": 8,
              "mono": True, "placeholder": "01 00:00-00:12 俯拍海面"},
@@ -184,6 +199,7 @@ MODULES: dict[str, dict[str, Any]] = {
     "palette": {
         "label": "配色",
         "types": ["art", "oc"],
+        "ui": "palette-swatches",
         "fields": [
             {"key": "colors", "label": "色值（每行一个）", "type": "textarea",
              "rows": 6, "mono": True, "placeholder": "#0b1220"},
@@ -193,6 +209,7 @@ MODULES: dict[str, dict[str, Any]] = {
     "outline": {
         "label": "大纲",
         "types": ["story", "world"],
+        "ui": "outline-tree",
         "fields": [
             {"key": "outline", "label": "大纲", "type": "textarea", "rows": 12},
         ],
@@ -214,6 +231,7 @@ MODULES: dict[str, dict[str, Any]] = {
     "timeline": {
         "label": "时间线",
         "types": ["story", "world"],
+        "ui": "timeline-track",
         "fields": [
             {"key": "timeline", "label": "时间线", "type": "textarea", "rows": 8},
         ],
@@ -246,7 +264,7 @@ MODULES: dict[str, dict[str, Any]] = {
 
 # 新建项目时默认启用的模块（按类型），前端也可用 /api/modules 的 defaults
 DEFAULT_MODULES: dict[str, list[str]] = {
-    "music": ["meta", "audio", "lyrics", "chords", "sections"],
+    "music": ["meta", "audio", "piano-roll", "lyrics", "chords", "sections", "finish"],
     "lyrics": ["meta", "lyrics"],
     "art": ["meta", "palette"],
     "code": ["meta", "code"],
@@ -393,6 +411,43 @@ def _clean_time_value(raw: Any, default: float = 0.0) -> float | int:
     return int(num) if num.is_integer() else round(num, 3)
 
 
+def _clean_cover(raw: Any) -> str:
+    """项目封面：项目目录里的相对图片路径。"""
+    if raw is None:
+        return ""
+    value = str(raw).strip().replace("\\", "/").lstrip("/")
+    if not value:
+        return ""
+    if ".." in value.split("/"):
+        _fail(400, "封面路径不合法")
+    if len(value) > 300:
+        _fail(400, "封面路径太长")
+    allowed = (".jpg", ".jpeg", ".png", ".webp", ".gif", ".avif", ".bmp")
+    if not value.lower().endswith(allowed):
+        _fail(400, "封面必须是图片文件（jpg/png/webp/gif/avif/bmp）")
+    return value
+
+
+def _clean_modules_data(raw: Any) -> dict[str, Any]:
+    """结构化模块数据：{moduleId: 任意 JSON}，单模块上限 512 KB。"""
+    if raw is None:
+        return {}
+    if not isinstance(raw, dict):
+        _fail(400, "modulesData 必须是对象")
+    result: dict[str, Any] = {}
+    for key, value in list(raw.items())[:60]:
+        if not isinstance(key, str) or not key.strip():
+            _fail(400, "modulesData 的键必须是非空字符串")
+        try:
+            size = len(json.dumps(value, ensure_ascii=False).encode("utf-8"))
+        except (TypeError, ValueError):
+            _fail(400, "模块 " + str(key) + " 的数据不是合法 JSON")
+        if size > 512 * 1024:
+            _fail(400, "模块 " + str(key) + " 的数据超过 512KB")
+        result[key.strip()] = value
+    return result
+
+
 def _clean_sections(raw: Any) -> list[dict[str, Any]]:
     if raw is None:
         return []
@@ -494,6 +549,10 @@ def _load(project_id: str) -> dict[str, Any]:
         data["fields"] = {}
     if not isinstance(data.get("sections"), list):
         data["sections"] = []
+    if not isinstance(data.get("modulesData"), dict):
+        data["modulesData"] = {}
+    if not isinstance(data.get("cover"), str):
+        data["cover"] = ""
     return data
 
 
@@ -618,6 +677,8 @@ async def create_project(request: Request) -> dict[str, Any]:
         "summary": _clean_summary(body.get("summary")),
         "modules": modules,
         "fields": _clean_fields(body.get("fields")),
+        "modulesData": _clean_modules_data(body.get("modulesData")),
+        "cover": _clean_cover(body.get("cover")),
         "sections": _clean_sections(body.get("sections")),
     }
     _save(project_id, data)
@@ -660,6 +721,20 @@ async def update_project(project_id: str, request: Request) -> dict[str, Any]:
         ]
     if "modules" in body:
         data["modules"] = _clean_modules(body.get("modules"), str(data.get("type") or "other"))
+    if "cover" in body:
+        data["cover"] = _clean_cover(body.get("cover"))
+    if "modulesData" in body:
+        incoming_data = _clean_modules_data(body.get("modulesData"))
+        if body.get("replaceModulesData"):
+            data["modulesData"] = incoming_data
+        else:
+            merged_data = dict(data.get("modulesData") or {})
+            for key, value in incoming_data.items():
+                if value is None:
+                    merged_data.pop(key, None)
+                else:
+                    merged_data[key] = value
+            data["modulesData"] = merged_data
     if "fields" in body:
         incoming = _clean_fields(body.get("fields"))
         if body.get("replaceFields"):
