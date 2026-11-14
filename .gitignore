@@ -39,3 +39,7 @@ opcpay/node_modules/
 opcpay/.env
 opcpay/data/
 *.log
+
+# 浏览器测试临时目录
+shots/**/chrome-profile*/
+shots/**/cp[0-9]*/

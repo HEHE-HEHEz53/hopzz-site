@@ -286,14 +286,25 @@
     box.scrollTo({ top: Math.max(0, target), behavior: 'smooth' });
   }
 
+  /** 换行时让文字从下方滑入（手机两行歌词的动态效果） */
+  function swapLine(node, text) {
+    if (!node || node.textContent === text) return;
+    node.classList.add('is-entering');
+    node.textContent = text;
+    void node.offsetHeight; // 强制回流：先落到偏移态
+    requestAnimationFrame(function () {
+      node.classList.remove('is-entering');
+    });
+  }
+
   function updateMini(index) {
     if (!el.mini1) return;
     var playing = index >= 0;
     var first = playing ? state.lines[index] : (state.lines[0] || null);
     var second = playing ? state.lines[index + 1] : (state.lines[1] || null);
-    el.mini1.textContent = first ? first.text : '';
+    swapLine(el.mini1, first ? first.text : '');
     el.mini1.classList.toggle('is-active', playing);
-    el.mini2.textContent = second ? second.text : '';
+    swapLine(el.mini2, second ? second.text : '');
   }
 
   function updateActiveFromTime(time) {

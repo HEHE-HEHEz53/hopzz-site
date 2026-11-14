@@ -193,27 +193,27 @@ body {
   left: 0;
   right: 0;
   top: 50%;
-  height: 3px;
+  height: 4px;
   transform: translateY(-50%);
   border-radius: 999px;
-  background: rgba(35, 32, 29, 0.1);
+  background: rgba(35, 32, 29, 0.16);
   overflow: hidden;
 }
 .progress-fill {
   height: 100%;
   width: 0;
   border-radius: 999px;
-  background: var(--accent);
+  background: var(--ink);
   transition: width 0.1s linear;
 }
 .progress-thumb {
   position: absolute;
   top: 50%;
   left: 0;
-  width: 10px;
-  height: 10px;
+  width: 11px;
+  height: 11px;
   border-radius: 50%;
-  background: var(--accent);
+  background: var(--ink);
   transform: translate(-50%, -50%);
   transition: left 0.1s linear, transform 0.15s ease;
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.16);
@@ -306,9 +306,6 @@ body {
   right: 0;
   top: 50%;
   transform: translateY(-50%);
-}
-@media (max-width: 899px) {
-  #moreBtn { position: static; transform: none; }
 }
 .volume .icon-btn { width: 36px; height: 36px; }
 .volume .icon-btn.small svg { width: 19px; height: 19px; }
@@ -475,7 +472,12 @@ body {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    transition: color 0.3s ease;
+    transition: color 0.3s ease, transform 0.34s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.34s ease;
+    will-change: transform, opacity;
+  }
+  .mini-line.is-entering {
+    opacity: 0;
+    transform: translateY(9px);
   }
   .mini-line.is-active { color: var(--ink); font-weight: 600; }
 
@@ -531,9 +533,20 @@ body {
 
   /* 手机端：右下角只留更多按钮，音量隐藏 */
   .volume { display: none; }
-  .controls { justify-content: space-between; padding: 0 clamp(6px, 6vw, 40px); }
-  .controls .icon-btn#moreBtn { position: static; }
-  .controls::after { content: ""; width: 42px; }
+  /* 手机端：三个主控严格居中，「更多」固定右侧 */
+  .controls {
+    justify-content: center;
+    gap: clamp(26px, 11vw, 52px);
+    padding: 0;
+  }
+  #moreBtn {
+    position: absolute;
+    right: 0;
+    top: 50%;
+    transform: translateY(-50%);
+  }
+  .progress { height: 26px; }
+  .progress-thumb { opacity: 1; }
 
   .menu { right: 22px; bottom: calc(env(safe-area-inset-bottom, 0px) + 108px); }
 
