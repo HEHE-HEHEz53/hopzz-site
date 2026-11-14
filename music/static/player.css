@@ -1,0 +1,363 @@
+/* music.hopzz.top 播放器 —— 纸张 / 留白 / 暖茶色点缀 */
+:root {
+  --paper: #f4f1ec;
+  --paper-2: #efe9e1;
+  --ink: #2b2622;
+  --ink-soft: #6b625a;
+  --line: rgba(43, 38, 34, 0.12);
+  --accent: #b06a2c;
+  --accent-soft: rgba(176, 106, 44, 0.14);
+  --shadow: 0 24px 60px rgba(70, 54, 40, 0.14);
+  --radius: 18px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --paper: #1a1714;
+    --paper-2: #211d19;
+    --ink: #efe8e0;
+    --ink-soft: #a79c90;
+    --line: rgba(239, 232, 224, 0.14);
+    --accent: #d99a5c;
+    --accent-soft: rgba(217, 154, 92, 0.16);
+    --shadow: 0 28px 70px rgba(0, 0, 0, 0.5);
+  }
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  min-height: 100%;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: "Hiragino Sans", "Noto Sans JP", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+body {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 24px 88px;
+  min-height: 100dvh;
+  overflow-x: hidden;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+
+/* 背景：极淡的纸纹 + 两块晕染 */
+.paper {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background:
+    radial-gradient(46% 38% at 18% 12%, rgba(196, 158, 120, 0.16), transparent 70%),
+    radial-gradient(40% 34% at 86% 82%, rgba(150, 160, 170, 0.14), transparent 72%),
+    var(--paper);
+}
+.paper::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  opacity: 0.35;
+  background-image: radial-gradient(rgba(43, 38, 34, 0.055) 1px, transparent 1px);
+  background-size: 3px 3px;
+  mix-blend-mode: multiply;
+}
+@media (prefers-color-scheme: dark) {
+  .paper::after { mix-blend-mode: screen; opacity: 0.16; }
+}
+
+/* ---------------- 主卡片 ---------------- */
+.player {
+  width: min(980px, 100%);
+  display: grid;
+  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+  gap: 44px;
+  padding: 40px;
+  border-radius: 26px;
+  background: color-mix(in srgb, var(--paper) 74%, transparent);
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(22px) saturate(120%);
+  -webkit-backdrop-filter: blur(22px) saturate(120%);
+}
+
+/* ---------------- 封面 ---------------- */
+.art { display: flex; flex-direction: column; justify-content: center; gap: 18px; }
+
+.cover-wrap {
+  position: relative;
+  border-radius: var(--radius);
+  overflow: hidden;
+  box-shadow: 0 18px 40px rgba(60, 46, 34, 0.22);
+  aspect-ratio: 1 / 1;
+  background: var(--paper-2);
+}
+.cover {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  transform: scale(1.001);
+  transition: transform 1.2s ease;
+  pointer-events: none;
+}
+.player.is-playing .cover { transform: scale(1.03); }
+.cover-veil {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, transparent 62%, rgba(30, 22, 16, 0.16));
+  pointer-events: none;
+}
+.signature {
+  margin: 0;
+  font-size: 11px;
+  letter-spacing: 0.32em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  text-align: center;
+}
+
+/* ---------------- 右侧主体 ---------------- */
+.body { display: flex; flex-direction: column; min-width: 0; }
+
+.head { margin-bottom: 22px; }
+.kicker {
+  margin: 0 0 10px;
+  font-size: 10px;
+  letter-spacing: 0.34em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+.title {
+  margin: 0;
+  font-size: clamp(22px, 3vw, 30px);
+  font-weight: 600;
+  line-height: 1.32;
+  letter-spacing: 0.01em;
+  word-break: break-word;
+}
+.artist {
+  margin: 8px 0 0;
+  font-size: 13px;
+  color: var(--ink-soft);
+  letter-spacing: 0.08em;
+}
+
+/* ---------------- 进度 ---------------- */
+.progress-block { margin: 4px 0 16px; }
+
+.progress {
+  position: relative;
+  height: 22px;
+  cursor: pointer;
+  touch-action: none;
+}
+.progress-track {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  right: 0;
+  height: 3px;
+  transform: translateY(-50%);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--ink) 14%, transparent);
+  overflow: hidden;
+}
+.progress-fill {
+  height: 100%;
+  width: 0%;
+  border-radius: 999px;
+  background: var(--accent);
+  transition: width 0.12s linear;
+}
+.progress-thumb {
+  position: absolute;
+  top: 50%;
+  left: 0%;
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  background: var(--accent);
+  transform: translate(-50%, -50%) scale(0.9);
+  transition: transform 0.16s ease, left 0.12s linear;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
+}
+.progress:hover .progress-thumb,
+.progress:focus-visible .progress-thumb { transform: translate(-50%, -50%) scale(1.15); }
+
+.times {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 2px;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-soft);
+  letter-spacing: 0.06em;
+}
+
+/* ---------------- 控制 ---------------- */
+.controls {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 22px;
+}
+
+.ctrl {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--ink);
+  cursor: pointer;
+  transition: background 0.18s ease, border-color 0.18s ease, transform 0.18s ease;
+}
+.ctrl:hover { background: var(--accent-soft); border-color: color-mix(in srgb, var(--accent) 40%, transparent); }
+.ctrl:active { transform: scale(0.94); }
+.ctrl.tiny { width: 30px; height: 30px; border: 0; }
+
+.play {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 62px;
+  height: 62px;
+  border-radius: 50%;
+  border: 1px solid color-mix(in srgb, var(--accent) 55%, transparent);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  color: var(--accent);
+  cursor: pointer;
+  transition: transform 0.18s ease, background 0.2s ease, box-shadow 0.2s ease;
+  margin-left: 2px;
+}
+.play:hover {
+  background: color-mix(in srgb, var(--accent) 20%, transparent);
+  box-shadow: 0 10px 24px color-mix(in srgb, var(--accent) 22%, transparent);
+}
+.play:active { transform: scale(0.95); }
+.play[disabled] { opacity: 0.5; cursor: default; }
+
+.spinner {
+  position: absolute;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: 2px solid color-mix(in srgb, var(--accent) 30%, transparent);
+  border-top-color: var(--accent);
+  animation: spin 0.9s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.volume { display: flex; align-items: center; gap: 8px; margin-left: auto; }
+.vol {
+  width: 84px;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+/* ---------------- 歌词 ---------------- */
+.lyrics-panel {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  flex: 1;
+}
+.lyrics-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--line);
+  font-size: 11px;
+  letter-spacing: 0.2em;
+  color: var(--ink-soft);
+}
+.lyrics-hint { letter-spacing: 0.06em; opacity: 0.7; }
+
+.lyrics {
+  position: relative;
+  margin-top: 6px;
+  height: clamp(240px, 38vh, 340px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--ink) 20%, transparent) transparent;
+  padding: 12px 4px 40% 0;
+  mask-image: linear-gradient(180deg, transparent 0, #000 12%, #000 82%, transparent 100%);
+  -webkit-mask-image: linear-gradient(180deg, transparent 0, #000 12%, #000 82%, transparent 100%);
+}
+.lyrics::-webkit-scrollbar { width: 5px; }
+.lyrics::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--ink) 18%, transparent);
+  border-radius: 999px;
+}
+
+.line {
+  margin: 0;
+  padding: 9px 10px;
+  border-radius: 10px;
+  font-size: 14.5px;
+  line-height: 1.72;
+  color: color-mix(in srgb, var(--ink) 46%, transparent);
+  cursor: pointer;
+  transition: color 0.25s ease, background 0.25s ease, transform 0.25s ease;
+  word-break: break-word;
+}
+.line:hover { color: var(--ink); background: color-mix(in srgb, var(--ink) 5%, transparent); }
+.line.is-active {
+  color: var(--ink);
+  font-weight: 600;
+  background: var(--accent-soft);
+  transform: translateX(3px);
+}
+.line.is-near { color: color-mix(in srgb, var(--ink) 72%, transparent); }
+
+.lyrics-empty {
+  margin: 28px 0;
+  font-size: 13px;
+  color: var(--ink-soft);
+  text-align: center;
+}
+
+/* ---------------- 页脚 ---------------- */
+.foot {
+  position: fixed;
+  bottom: 18px;
+  left: 0;
+  right: 0;
+  display: flex;
+  justify-content: center;
+  gap: 14px;
+  font-size: 10.5px;
+  letter-spacing: 0.12em;
+  color: color-mix(in srgb, var(--ink) 40%, transparent);
+  pointer-events: none;
+}
+
+/* ---------------- 响应式 ---------------- */
+@media (max-width: 860px) {
+  body { padding: 20px 14px 72px; justify-content: flex-start; }
+  .player {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 26px;
+    padding: 22px;
+    border-radius: 22px;
+  }
+  .cover-wrap { max-width: 340px; margin: 0 auto; }
+  .signature { display: none; }
+  .lyrics { height: clamp(200px, 34vh, 300px); }
+  .controls { gap: 10px; }
+  .volume { margin-left: auto; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * { animation: none !important; transition: none !important; }
+}

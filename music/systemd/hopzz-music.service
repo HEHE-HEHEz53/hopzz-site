@@ -1,0 +1,21 @@
+[Unit]
+Description=Hopzz Music Player (music.hopzz.top)
+After=network.target
+
+[Service]
+Type=simple
+User=www-data
+Group=www-data
+WorkingDirectory=/opt/hopzz-music/server
+EnvironmentFile=/opt/hopzz-music/.env
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/opt/hopzz-music/venv/bin/python -m uvicorn app:app --host 127.0.0.1 --port 8104 --proxy-headers --forwarded-allow-ips=127.0.0.1
+Restart=always
+RestartSec=3
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ReadWritePaths=/srv/music
+
+[Install]
+WantedBy=multi-user.target
