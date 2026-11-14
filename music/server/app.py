@@ -173,8 +173,19 @@ def api_lyrics(track_id: str) -> Any:
     base = track_dir(track_id)
     lrc = base / "lyrics.lrc"
     if not lrc.is_file():
-        return {"ok": True, "meta": {}, "lines": []}
-    return {"ok": True, **parse_lrc(lrc.read_text(encoding="utf-8"))}
+        return {"ok": True, "meta": {}, "lines": [], "translation": [], "hasTranslation": False}
+    parsed = parse_lrc(lrc.read_text(encoding="utf-8"))
+    translation: list[dict[str, Any]] = []
+    trans_file = base / "translation.lrc"
+    if trans_file.is_file():
+        translation = parse_lrc(trans_file.read_text(encoding="utf-8"))["lines"]
+    return {
+        "ok": True,
+        "meta": parsed["meta"],
+        "lines": parsed["lines"],
+        "translation": translation,
+        "hasTranslation": bool(translation),
+    }
 
 
 @app.get("/api/cover/{track_id}")
