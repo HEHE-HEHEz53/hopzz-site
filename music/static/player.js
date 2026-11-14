@@ -1,3 +1,9 @@
+/*!
+ * music.hopzz.top 播放器
+ * © 2026 贺嘉（HEHEz53 / Hopzz）. 保留所有权利。
+ * 本文件受版权保护，未经书面许可不得复制、再分发或用于商业用途。
+ * 作品：不器用なピアノ（AI 生成，已取得商业授权）
+ */
 /* music.hopzz.top 播放器 v2
  * 桌面：左封面右歌词；手机：封面 + 两行歌词预览，上滑展开全屏歌词（顶栏小封面）
  */
@@ -104,6 +110,8 @@
     return m + ':' + (s < 10 ? '0' : '') + s;
   }
 
+  /** 申请短时签名地址（2 分钟）。
+   *  该地址还必须带页面会话 Cookie 且由播放页发起才会返回音频。 */
   function fetchAudioUrl() {
     return api('/api/track/' + TRACK_ID).then(function (res) {
       state.track = res.track;
@@ -324,6 +332,7 @@
     state.audioUrl = url;
     audio.src = url;
     audio.playbackRate = state.rate;
+    app.classList.remove('is-loading');
 
     audio.addEventListener('loadedmetadata', function () {
       if (isFinite(audio.duration) && audio.duration > 0) {

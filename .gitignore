@@ -43,3 +43,5 @@ opcpay/data/
 # 浏览器测试临时目录
 shots/**/chrome-profile*/
 shots/**/cp[0-9]*/
+shots/music/cp*/
+shots/music/chrome-profile*/

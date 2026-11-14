@@ -90,3 +90,26 @@ bash music/install_music.sh
 ## 翻译
 
 `translation.lrc` 与 `lyrics.lrc` 时间轴一一对应，接口 `/api/lyrics/<id>` 同时返回 `lines` 与 `translation`。
+## 防下载（v3）
+
+| 层 | 做法 | 拦住了什么 |
+| --- | --- | --- |
+| 1 | 页面加载时下发 HttpOnly 会话 Cookie | 别的浏览器/设备拿到 URL 也播不了 |
+| 2 | 音频地址带 2 分钟签名（HMAC） | 链接过期即失效 |
+| 3 | 校验 `Sec-Fetch-Site: same-origin` / 同源 Referer | **地址栏直接打开、资源嗅探器新标签打开 → 403** |
+| 4 | 响应头 `Content-Disposition: inline`、`no-store` | 不提示下载、不进缓存 |
+| 5 | 禁用右键/拖拽 | 普通用户拿不到「另存为」 |
+
+实测：复制播放地址直接打开 → `403 请从播放页面收听`；在播放页内 `<audio>` 正常 200/206、可拖动。
+
+> 说明：网页播放从原理上无法 100% 阻止下载（浏览器最终要解码音频）。这里的目标是让普通用户拿不到源文件；懂开发者工具的人仍可录屏或抓包提取。
+
+## 版权
+
+版权信息写在代码里（页面不显示）：
+
+- `server/app.py` 文件头、`static/player.js`、`static/player.css` 文件头
+- `player.html` 顶部 HTML 注释、`<meta name="copyright">`
+- 接口 `GET /api/credits`、纯文本 `GET /static/copyright.txt`
+- 音频文件内嵌 **ID3 标签**：`TCOP` 版权、`TENC` 来源、`COMM` 授权说明
+- 响应头 `X-Copyright`（ASCII）
